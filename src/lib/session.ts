@@ -1,6 +1,6 @@
-const ID_KEY = 'cidade-dorme:client-id'
-const NAME_KEY = 'cidade-dorme:name'
-const ROOM_KEY = 'cidade-dorme:last-room'
+const ID_KEY = 'sleep-city:client-id'
+const NAME_KEY = 'sleep-city:name'
+const ROOM_KEY = 'sleep-city:last-room'
 
 let memoryId: string | null = null
 

@@ -23,7 +23,7 @@ export function SharePanel({ code }: { code: string }) {
 
   async function share() {
     try {
-      await navigator.share({ title: 'Cidade Dorme', text: `Entre na sala ${code}`, url: link })
+      await navigator.share({ title: 'Sleep City', text: `Entre na sala ${code}`, url: link })
     } catch {
       // usuário cancelou o compartilhamento
     }

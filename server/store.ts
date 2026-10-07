@@ -16,9 +16,9 @@ export interface Store {
 }
 
 const keys = {
-  room: (code: string) => `cd:room:${code}`,
-  players: (code: string) => `cd:room:${code}:players`,
-  roles: (code: string) => `cd:room:${code}:roles`,
+  room: (code: string) => `sc:room:${code}`,
+  players: (code: string) => `sc:room:${code}:players`,
+  roles: (code: string) => `sc:room:${code}:roles`,
 }
 
 const parse = <T>(value: unknown): T => (typeof value === 'string' ? JSON.parse(value) : value) as T
@@ -122,7 +122,7 @@ export function getStore(): Store {
   } else {
     if (process.env.VERCEL) {
       console.warn(
-        '[cidade-dorme] Nenhum Redis configurado: usando memória. As salas vão sumir/falhar entre instâncias. ' +
+        '[sleep-city] Nenhum Redis configurado: usando memória. As salas vão sumir/falhar entre instâncias. ' +
           'Conecte um banco Upstash Redis ao projeto na Vercel.',
       )
     }
