@@ -21,7 +21,7 @@ interface Props {
 }
 
 export function HostPanel({ room, onChange }: Props) {
-  const [counts, setCounts] = useState<Counts>(room.counts)
+  const [counts, setCounts] = useState<Counts>(room.counts ?? { assassinos: 0, detetives: 0, samu: 0 })
   const [busy, setBusy] = useState(false)
 
   const total = room.players.length
