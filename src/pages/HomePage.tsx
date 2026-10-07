@@ -1,8 +1,7 @@
 import { useState, type FormEvent } from 'react'
-import { ArrowRight, Loader2, Plus } from 'lucide-react'
+import { ArrowRight, Loader2, Moon, Sparkles, Star } from 'lucide-react'
 import { toast } from 'sonner'
 
-import { AppHeader } from '@/components/AppHeader'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -42,13 +41,19 @@ export function HomePage() {
 
   return (
     <>
-      <AppHeader />
-
-      <section className="py-4 text-center">
-        <h1 className="text-2xl font-semibold tracking-tight">A cidade vai dormir…</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Crie uma sala, compartilhe o link e deixe o sorteio das funções com a gente. Cada pessoa vê apenas a
-          própria função, no próprio celular.
+      <section className="flex flex-col items-center pt-4 pb-2 text-center">
+        <div className="relative mb-4">
+          <Star className="absolute -top-2 -left-8 size-5 fill-white text-white opacity-80" />
+          <Sparkles className="absolute -right-9 top-1 size-6 text-sun" />
+          <Star className="absolute -bottom-1 -right-6 size-3.5 fill-white text-white opacity-60" />
+          <div className="grid size-24 animate-float place-items-center rounded-full bg-sun shadow-[0_6px_0_var(--color-sun-dark)]">
+            <Moon className="size-12 fill-current text-sun-foreground" />
+          </div>
+        </div>
+        <h1 className="game-title font-display text-5xl font-bold tracking-tight text-white">Sleep City</h1>
+        <p className="mt-3 max-w-xs font-bold text-white/85">
+          A cidade dorme… e cada celular guarda um segredo. Crie a sala, chame a galera e deixe o sorteio com a
+          gente!
         </p>
       </section>
 
@@ -60,7 +65,9 @@ export function HomePage() {
         <CardContent>
           <form onSubmit={createRoom} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
-              <Label htmlFor="host-name">Seu nome</Label>
+              <Label htmlFor="host-name" className="font-display text-base">
+                Seu nome
+              </Label>
               <Input
                 id="host-name"
                 value={name}
@@ -71,17 +78,17 @@ export function HomePage() {
                 required
               />
             </div>
-            <div className="flex items-center justify-between gap-4 rounded-lg border p-3">
-              <Label htmlFor="host-plays" className="flex-col items-start gap-1">
+            <div className="flex items-center justify-between gap-4 rounded-2xl bg-muted p-3.5">
+              <Label htmlFor="host-plays" className="flex-col items-start gap-1 font-display text-base">
                 Também vou jogar
-                <span className="text-xs font-normal text-muted-foreground">
+                <span className="font-sans text-xs font-semibold text-muted-foreground">
                   Desligue se você for apenas o narrador.
                 </span>
               </Label>
               <Switch id="host-plays" checked={plays} onCheckedChange={setPlays} />
             </div>
-            <Button type="submit" size="lg" disabled={loading || !name.trim()}>
-              {loading ? <Loader2 className="animate-spin" /> : <Plus />}
+            <Button type="submit" variant="play" size="lg" disabled={loading || !name.trim()}>
+              {loading && <Loader2 className="animate-spin" />}
               Criar sala
             </Button>
           </form>
@@ -102,11 +109,11 @@ export function HomePage() {
               maxLength={8}
               autoCapitalize="characters"
               autoComplete="off"
-              className="font-mono tracking-widest uppercase"
+              className="font-display text-lg tracking-[0.25em] uppercase"
               aria-label="Código da sala"
             />
-            <Button type="submit" variant="secondary" disabled={!code.trim()}>
-              Entrar <ArrowRight />
+            <Button type="submit" className="h-12" disabled={!code.trim()} aria-label="Entrar">
+              <ArrowRight />
             </Button>
           </form>
           {previousRoom && (
