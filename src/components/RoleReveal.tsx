@@ -19,7 +19,7 @@ export function RoleReveal({ role, round }: { role: Role | null; round: number }
     setRevealed(false)
     if (round !== lastRound.current) {
       lastRound.current = round
-      toast('Nova rodada sorteada', { description: 'Segure o botão para ver sua função.' })
+      toast('🌙 Nova rodada sorteada!', { description: 'Segure o botão para ver sua função.' })
     }
   }, [round])
 
@@ -38,7 +38,7 @@ export function RoleReveal({ role, round }: { role: Role | null; round: number }
   if (!role) {
     return (
       <Card>
-        <CardContent className="py-4 text-center text-sm text-muted-foreground">
+        <CardContent className="py-2 text-center font-bold text-muted-foreground">
           Você entrou depois do sorteio. Aguarde o dono da sala sortear a próxima rodada.
         </CardContent>
       </Card>
@@ -56,25 +56,29 @@ export function RoleReveal({ role, round }: { role: Role | null; round: number }
   return (
     <Card className="gap-4 py-5">
       <CardContent className="flex flex-col gap-4">
-        <div className="flex items-center justify-between text-xs text-muted-foreground">
-          <span>Sua função</span>
-          <span>Rodada {round}</span>
+        <div className="flex items-center justify-between">
+          <span className="font-display text-lg font-semibold text-primary-deep">Sua função</span>
+          <span className="rounded-full bg-secondary px-3 py-1 font-display text-xs font-semibold text-secondary-foreground uppercase">
+            Rodada {round}
+          </span>
         </div>
 
         <div
           aria-live="polite"
-          className="flex h-40 items-center justify-center rounded-xl border border-dashed bg-background/60 px-4 text-center"
+          className="card-back flex h-48 items-center justify-center rounded-2xl border-4 border-white px-4 text-center text-white shadow-[0_0_0_3px_var(--color-primary)]"
         >
           {revealed ? (
-            <div>
-              <p className="text-[11px] tracking-[0.2em] text-muted-foreground uppercase">Você é</p>
-              <p className="mt-1 text-3xl font-semibold tracking-tight">{info.label}</p>
-              <p className="mx-auto mt-2 max-w-64 text-xs text-muted-foreground">{info.description}</p>
+            <div className="animate-pop">
+              <p className="font-display text-xs font-semibold tracking-[0.25em] text-white/80 uppercase">Você é</p>
+              <p className="game-title mt-1 font-display text-4xl font-bold">{info.label}</p>
+              <p className="mx-auto mt-3 max-w-64 text-sm font-bold text-white/90">{info.description}</p>
             </div>
           ) : (
-            <div className="flex flex-col items-center gap-2 text-muted-foreground">
-              <EyeOff className="size-6" />
-              <span className="text-sm">Função oculta</span>
+            <div className="flex flex-col items-center gap-1">
+              <span className="game-title font-display text-6xl font-bold">?</span>
+              <span className="font-display text-sm font-semibold tracking-wide text-white/85 uppercase">
+                Função oculta
+              </span>
             </div>
           )}
         </div>
@@ -93,17 +97,17 @@ export function RoleReveal({ role, round }: { role: Role | null; round: number }
           onBlur={() => setRevealed(false)}
           onContextMenu={(e) => e.preventDefault()}
           className={cn(
-            'flex h-16 w-full touch-none items-center justify-center gap-2 rounded-xl border bg-secondary text-sm font-medium select-none [-webkit-touch-callout:none] [-webkit-user-select:none]',
-            'transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50',
-            revealed && 'bg-accent',
+            'flex h-16 w-full touch-none items-center justify-center gap-2 rounded-2xl bg-sun font-display text-lg font-semibold text-sun-foreground uppercase select-none [-webkit-touch-callout:none] [-webkit-user-select:none]',
+            'shadow-[0_5px_0_var(--color-sun-dark)] transition-all outline-none focus-visible:ring-4 focus-visible:ring-ring/50',
+            revealed && 'translate-y-[4px] shadow-[0_1px_0_var(--color-sun-dark)]',
           )}
         >
-          {revealed ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+          {revealed ? <EyeOff className="size-5" /> : <Eye className="size-5" />}
           {revealed ? 'Solte para esconder' : 'Segure para revelar'}
         </button>
 
-        <p className="text-center text-xs text-muted-foreground">
-          Dica: incline o celular para você e cubra a tela com a outra mão.
+        <p className="text-center text-xs font-bold text-muted-foreground">
+          🤫 Dica: incline o celular para você e cubra a tela com a outra mão.
         </p>
       </CardContent>
     </Card>

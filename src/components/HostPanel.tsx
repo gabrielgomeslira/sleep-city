@@ -8,10 +8,10 @@ import { api } from '@/lib/api'
 import type { Counts, RoomView } from '@/lib/types'
 import { cn, errorMessage } from '@/lib/utils'
 
-const FIELDS: { key: keyof Counts; label: string }[] = [
-  { key: 'assassinos', label: 'Assassinos' },
-  { key: 'detetives', label: 'Detetives' },
-  { key: 'samu', label: 'SAMU' },
+const FIELDS: { key: keyof Counts; label: string; emoji: string }[] = [
+  { key: 'assassinos', label: 'Assassinos', emoji: '🔪' },
+  { key: 'detetives', label: 'Detetives', emoji: '🔍' },
+  { key: 'samu', label: 'SAMU', emoji: '🚑' },
 ]
 
 interface Props {
@@ -42,7 +42,7 @@ export function HostPanel({ room, onChange }: Props) {
 
   function start() {
     if (playing && !confirm('Sortear novas funções para todos? A rodada atual será substituída.')) return
-    run(() => api.start(room.code, counts), playing ? 'Novas funções sorteadas' : 'Funções sorteadas!')
+    run(() => api.start(room.code, counts), playing ? 'Novas funções sorteadas!' : 'Funções sorteadas! 🌙')
   }
 
   function reset() {
@@ -55,31 +55,34 @@ export function HostPanel({ room, onChange }: Props) {
       <CardHeader>
         <CardTitle>Funções da rodada</CardTitle>
         <CardDescription>
-          Quem não receber uma função especial será cidadão. O sorteio é aleatório e ninguém (nem você) vê a
-          função dos outros.
+          Quem não tirar uma função especial vira cidadão. Ninguém (nem você) vê a função dos outros.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col divide-y rounded-lg border">
-          {FIELDS.map(({ key, label }) => (
-            <div key={key} className="flex items-center justify-between gap-3 px-3 py-2">
-              <span className="text-sm">{label}</span>
-              <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2">
+          {FIELDS.map(({ key, label, emoji }) => (
+            <div key={key} className="flex items-center justify-between gap-3 rounded-2xl bg-muted py-2 pr-2 pl-3">
+              <span className="flex items-center gap-2 font-display text-lg font-semibold text-primary-deep">
+                <span className="text-xl">{emoji}</span>
+                {label}
+              </span>
+              <div className="flex items-center gap-2">
                 <Button
                   variant="outline"
                   size="icon"
-                  className="size-8"
+                  className="rounded-full"
                   disabled={counts[key] === 0}
                   onClick={() => setCounts((c) => ({ ...c, [key]: c[key] - 1 }))}
                   aria-label={`Menos ${label}`}
                 >
                   <Minus />
                 </Button>
-                <span className="w-5 text-center font-mono text-base tabular-nums">{counts[key]}</span>
+                <span className="w-7 text-center font-display text-2xl font-bold text-primary tabular-nums">
+                  {counts[key]}
+                </span>
                 <Button
-                  variant="outline"
                   size="icon"
-                  className="size-8"
+                  className="rounded-full"
                   onClick={() => setCounts((c) => ({ ...c, [key]: c[key] + 1 }))}
                   aria-label={`Mais ${label}`}
                 >
@@ -88,23 +91,31 @@ export function HostPanel({ room, onChange }: Props) {
               </div>
             </div>
           ))}
-          <div className="flex items-center justify-between px-3 py-2 text-sm text-muted-foreground">
-            <span>Cidadãos</span>
-            <span className={cn('w-[6.75rem] text-center font-mono tabular-nums', citizens < 0 && 'text-destructive')}>
+          <div className="flex items-center justify-between gap-3 rounded-2xl border-2 border-dashed border-secondary-dark py-2 pr-2 pl-3">
+            <span className="flex items-center gap-2 font-display text-lg font-semibold text-muted-foreground">
+              <span className="text-xl">🏠</span>
+              Cidadãos
+            </span>
+            <span
+              className={cn(
+                'w-[7.75rem] text-center font-display text-2xl font-bold text-muted-foreground tabular-nums',
+                citizens < 0 && 'text-destructive',
+              )}
+            >
               {citizens}
             </span>
           </div>
         </div>
 
         {citizens < 0 && (
-          <p className="text-sm text-destructive">
+          <p className="rounded-xl bg-destructive/10 px-3 py-2 text-sm font-bold text-destructive">
             Há mais funções especiais ({special}) do que jogadores ({total}).
           </p>
         )}
 
-        <Button size="lg" onClick={start} disabled={busy || total === 0 || citizens < 0}>
-          {busy ? <Loader2 className="animate-spin" /> : playing ? <Shuffle /> : <Play />}
-          {playing ? 'Sortear nova rodada' : 'Sortear funções e iniciar'}
+        <Button variant="success" size="lg" onClick={start} disabled={busy || total === 0 || citizens < 0}>
+          {busy ? <Loader2 className="animate-spin" /> : playing ? <Shuffle /> : <Play className="fill-current" />}
+          {playing ? 'Sortear nova rodada' : 'Sortear e começar'}
         </Button>
 
         {playing && (
@@ -115,8 +126,8 @@ export function HostPanel({ room, onChange }: Props) {
 
         {!room.me && (
           <Button
-            variant="ghost"
-            onClick={() => run(() => api.join(room.code, room.hostName), 'Você entrou no sorteio')}
+            variant="secondary"
+            onClick={() => run(() => api.join(room.code, room.hostName), 'Você entrou no sorteio!')}
             disabled={busy}
           >
             <UserPlus /> Também quero jogar

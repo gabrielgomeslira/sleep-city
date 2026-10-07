@@ -67,13 +67,13 @@ export function RoomPage({ code }: { code: string }) {
         <AppHeader />
         <Card>
           <CardHeader>
-            <CardTitle>Sala não encontrada</CardTitle>
+            <CardTitle>😴 Sala não encontrada</CardTitle>
             <CardDescription>
               O código {code} não existe ou a sala expirou. Confira o link com quem criou a sala.
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <Button className="w-full" onClick={() => navigate('/')}>
+            <Button variant="play" size="lg" className="w-full" onClick={() => navigate('/')}>
               Voltar ao início
             </Button>
           </CardContent>
@@ -86,8 +86,8 @@ export function RoomPage({ code }: { code: string }) {
     return (
       <>
         <AppHeader />
-        <div className="flex flex-1 flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-          <Loader2 className="size-6 animate-spin" />
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 font-display text-lg font-semibold text-white/85">
+          <Loader2 className="size-8 animate-spin" />
           {error ?? 'Carregando sala…'}
         </div>
       </>
@@ -120,8 +120,8 @@ export function RoomPage({ code }: { code: string }) {
     <>
       <AppHeader>
         <div className="flex items-center gap-2">
-          {error && <span className="size-2 rounded-full bg-destructive" title={error} />}
-          <Badge variant="outline" className="font-mono tracking-widest">
+          {error && <span className="size-2.5 rounded-full bg-destructive ring-2 ring-white" title={error} />}
+          <Badge className="border-0 bg-white px-3 py-1 text-sm tracking-[0.2em] text-primary shadow-[0_3px_0_rgb(46_16_101/0.35)]">
             {room.code}
           </Badge>
         </div>
@@ -135,15 +135,19 @@ export function RoomPage({ code }: { code: string }) {
 
           {!playing && !room.isHost && (
             <Card>
-              <CardContent className="flex items-center gap-3 py-1 text-sm text-muted-foreground">
-                <Loader2 className="size-4 shrink-0 animate-spin" />
-                Aguardando {room.hostName} sortear as funções…
+              <CardContent className="flex flex-col items-center gap-2 py-2 text-center">
+                <span className="animate-float text-5xl">😴</span>
+                <p className="font-display text-xl font-semibold text-primary-deep">Você está na sala!</p>
+                <p className="flex items-center gap-2 text-sm font-bold text-muted-foreground">
+                  <Loader2 className="size-4 shrink-0 animate-spin" />
+                  Aguardando {room.hostName} sortear as funções…
+                </p>
               </CardContent>
             </Card>
           )}
 
           {playing && !room.isHost && (
-            <p className="text-center text-xs text-muted-foreground">
+            <p className="text-center text-sm font-bold text-white/80">
               Nesta rodada: {room.counts.assassinos} assassino(s), {room.counts.detetives} detetive(s),{' '}
               {room.counts.samu} SAMU
             </p>
@@ -154,7 +158,7 @@ export function RoomPage({ code }: { code: string }) {
           <PlayerList players={room.players} canKick={room.isHost} onKick={kick} />
 
           {!room.isHost && (
-            <Button variant="ghost" className="text-muted-foreground" onClick={leave}>
+            <Button variant="ghost" className="text-white/80 hover:bg-white/10 hover:text-white" onClick={leave}>
               <LogOut /> Sair da sala
             </Button>
           )}

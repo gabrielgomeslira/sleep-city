@@ -1,33 +1,42 @@
 @import "tailwindcss";
 
-@custom-variant dark (&:is(.dark *));
-
-/* Tema escuro único: discreto e com pouco brilho, bom para jogar à noite. */
+/* Visual de jogo de navegador: fundo roxo vibrante, cartões brancos e botões "3D". */
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.16 0.012 275);
-  --foreground: oklch(0.95 0.005 275);
-  --card: oklch(0.2 0.014 275);
-  --card-foreground: oklch(0.95 0.005 275);
-  --popover: oklch(0.2 0.014 275);
-  --popover-foreground: oklch(0.95 0.005 275);
-  --primary: oklch(0.9 0.01 275);
-  --primary-foreground: oklch(0.2 0.014 275);
-  --secondary: oklch(0.27 0.016 275);
-  --secondary-foreground: oklch(0.95 0.005 275);
-  --muted: oklch(0.27 0.016 275);
-  --muted-foreground: oklch(0.68 0.015 275);
-  --accent: oklch(0.29 0.018 275);
-  --accent-foreground: oklch(0.95 0.005 275);
-  --destructive: oklch(0.65 0.19 22);
-  --border: oklch(1 0 0 / 9%);
-  --input: oklch(1 0 0 / 14%);
-  --ring: oklch(0.6 0.02 275);
+  --radius: 1rem;
+  --background: #5b21b6;
+  --foreground: #ffffff;
+  --card: #ffffff;
+  --card-foreground: #2e1065;
+  --popover: #ffffff;
+  --popover-foreground: #2e1065;
+  --primary: #7c3aed;
+  --primary-foreground: #ffffff;
+  --primary-dark: #5b21b6;
+  --primary-deep: #2e1065;
+  --secondary: #ede9fe;
+  --secondary-foreground: #4c1d95;
+  --secondary-dark: #c4b5fd;
+  --muted: #f5f3ff;
+  --muted-foreground: #6d5b98;
+  --accent: #ddd6fe;
+  --accent-foreground: #4c1d95;
+  --destructive: #ef4444;
+  --destructive-dark: #b91c1c;
+  --border: #ede9fe;
+  --input: #ddd6fe;
+  --ring: #a78bfa;
+  --sun: #facc15;
+  --sun-dark: #ca8a04;
+  --sun-foreground: #422006;
+  --grass: #22c55e;
+  --grass-dark: #15803d;
 }
 
 @theme inline {
-  --radius-sm: calc(var(--radius) - 4px);
-  --radius-md: calc(var(--radius) - 2px);
+  --font-sans: "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --font-display: "Fredoka", "Nunito", ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 6px);
+  --radius-md: calc(var(--radius) - 4px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
   --color-background: var(--background);
@@ -38,16 +47,48 @@
   --color-popover-foreground: var(--popover-foreground);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
+  --color-primary-dark: var(--primary-dark);
+  --color-primary-deep: var(--primary-deep);
   --color-secondary: var(--secondary);
   --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary-dark: var(--secondary-dark);
   --color-muted: var(--muted);
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
   --color-destructive: var(--destructive);
+  --color-destructive-dark: var(--destructive-dark);
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-sun: var(--sun);
+  --color-sun-dark: var(--sun-dark);
+  --color-sun-foreground: var(--sun-foreground);
+  --color-grass: var(--grass);
+  --color-grass-dark: var(--grass-dark);
+
+  --animate-float: float 4s ease-in-out infinite;
+  --animate-pop: pop 0.25s ease-out;
+
+  @keyframes float {
+    0%,
+    100% {
+      transform: translateY(0) rotate(-6deg);
+    }
+    50% {
+      transform: translateY(-8px) rotate(4deg);
+    }
+  }
+  @keyframes pop {
+    0% {
+      transform: scale(0.85);
+      opacity: 0;
+    }
+    100% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
 }
 
 @layer base {
@@ -58,6 +99,32 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    @apply bg-background text-foreground antialiased;
+    @apply text-foreground font-sans antialiased;
+    min-height: 100dvh;
+    background-color: var(--background);
+    background-image:
+      radial-gradient(rgb(255 255 255 / 0.09) 2px, transparent 2.5px),
+      linear-gradient(160deg, #8b5cf6 0%, #6d28d9 45%, #3b0764 100%);
+    background-size:
+      26px 26px,
+      100% 100%;
+    background-attachment: fixed;
+  }
+}
+
+@layer components {
+  .game-title {
+    text-shadow: 0 4px 0 var(--primary-deep);
+  }
+  /* "Verso de carta": padrão usado na área da função oculta. */
+  .card-back {
+    background-color: var(--primary);
+    background-image:
+      radial-gradient(rgb(255 255 255 / 0.14) 2px, transparent 2.5px),
+      radial-gradient(rgb(255 255 255 / 0.14) 2px, transparent 2.5px);
+    background-size: 18px 18px;
+    background-position:
+      0 0,
+      9px 9px;
   }
 }
