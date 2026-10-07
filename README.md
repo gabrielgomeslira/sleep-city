@@ -1,6 +1,6 @@
-# 🌙 Cidade Dorme
+# 🌙 Sleep City
 
-Um ajudante para a brincadeira **Cidade Dorme**: uma pessoa cria a sala e compartilha o link, os amigos entram com o próprio nome, e o dono da sala sorteia **Assassinos**, **Detetives** e **SAMU**. O resto da sala fica como cidadão. Cada pessoa vê **apenas a própria função**, no próprio celular.
+**Sleep City** é um ajudante para a brincadeira **Cidade Dorme**: uma pessoa cria a sala e compartilha o link, os amigos entram com o próprio nome, e o dono da sala sorteia **Assassinos**, **Detetives** e **SAMU**. O resto da sala fica como cidadão. Cada pessoa vê **apenas a própria função**, no próprio celular.
 
 - **Frontend:** React 19 + Vite + Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com)
 - **Backend:** Node.js + Express, publicado como Vercel Function (`api/index.ts`)
