@@ -3,6 +3,7 @@ import { Loader2, Minus, Play, Plus, RotateCcw, Shuffle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
+import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { api } from '@/lib/api'
 import type { Counts, RoomView } from '@/lib/types'
@@ -40,13 +41,29 @@ export function HostPanel({ room, onChange }: Props) {
     }
   }
 
-  function start() {
-    if (playing && !confirm('Sortear novas funções para todos? A rodada atual será substituída.')) return
+  async function start() {
+    if (
+      playing &&
+      !(await confirmDialog({
+        emoji: '🔀',
+        title: 'Sortear nova rodada?',
+        description: 'Todos recebem funções novas. A rodada atual será substituída.',
+        confirmText: 'Sortear',
+        variant: 'success',
+      }))
+    )
+      return
     run(() => api.start(room.code, counts), playing ? 'Novas funções sorteadas!' : 'Funções sorteadas! 🌙')
   }
 
-  function reset() {
-    if (!confirm('Encerrar a rodada e voltar para o lobby?')) return
+  async function reset() {
+    const ok = await confirmDialog({
+      emoji: '🌅',
+      title: 'Encerrar a rodada?',
+      description: 'As funções somem e todos voltam para o lobby.',
+      confirmText: 'Encerrar',
+    })
+    if (!ok) return
     run(() => api.reset(room.code))
   }
 
