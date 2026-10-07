@@ -11,6 +11,7 @@ export interface Store {
   setPlayer(code: string, clientId: string, player: Player): Promise<void>
   removePlayer(code: string, clientId: string): Promise<void>
   getRole(code: string, clientId: string): Promise<Role | null>
+  getRoles(code: string): Promise<Record<string, Role>>
   setRoles(code: string, roles: Record<string, Role>): Promise<void>
   clearRoles(code: string): Promise<void>
 }
@@ -57,6 +58,10 @@ class RedisStore implements Store {
     return ((await this.redis.hget<Role>(keys.roles(code), clientId)) ?? null) as Role | null
   }
 
+  async getRoles(code: string) {
+    return (await this.redis.hgetall<Record<string, Role>>(keys.roles(code))) ?? {}
+  }
+
   async setRoles(code: string, roles: Record<string, Role>) {
     const p = this.redis.pipeline()
     p.del(keys.roles(code))
@@ -100,6 +105,9 @@ class MemoryStore implements Store {
   }
   async getRole(code: string, clientId: string) {
     return this.hash(this.roles, code).get(clientId) ?? null
+  }
+  async getRoles(code: string) {
+    return Object.fromEntries(this.hash(this.roles, code))
   }
   async setRoles(code: string, roles: Record<string, Role>) {
     this.roles.set(code, new Map(Object.entries(roles)))

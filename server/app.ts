@@ -40,12 +40,25 @@ function requireHost(room: Room, clientId: string) {
   if (room.hostId !== clientId) throw new HttpError(403, 'Apenas quem criou a sala pode fazer isso')
 }
 
-/** What a given client is allowed to see: everyone's names, but only their own role. */
+/** The room creator is always the narrator: never part of the draw. */
+async function getPlayers(room: Room) {
+  const players = await getStore().getPlayers(room.code)
+  delete players[room.hostId]
+  return players
+}
+
+/**
+ * What a given client is allowed to see: the narrator sees everyone's role,
+ * each player sees only their own.
+ */
 async function roomView(room: Room, clientId: string) {
   const store = getStore()
-  const [players, role] = await Promise.all([
-    store.getPlayers(room.code),
-    room.status === 'playing' ? store.getRole(room.code, clientId) : null,
+  const isHost = room.hostId === clientId
+  const playing = room.status === 'playing'
+  const [players, roles, ownRole] = await Promise.all([
+    getPlayers(room),
+    playing && isHost ? store.getRoles(room.code) : null,
+    playing && !isHost ? store.getRole(room.code, clientId) : null,
   ])
   const me = players[clientId]
 
@@ -55,17 +68,22 @@ async function roomView(room: Room, clientId: string) {
     round: room.round,
     counts: room.counts,
     hostName: room.hostName,
-    isHost: room.hostId === clientId,
+    isHost,
     players: Object.entries(players)
       .sort(([, a], [, b]) => a.joinedAt - b.joinedAt)
-      .map(([id, p]) => ({ pid: p.pid, name: p.name, isHost: id === room.hostId, isMe: id === clientId })),
-    me: me ? { pid: me.pid, name: me.name, role: role ?? null } : null,
+      .map(([id, p]) => ({
+        pid: p.pid,
+        name: p.name,
+        isMe: id === clientId,
+        ...(roles && { role: roles[id] ?? null }),
+      })),
+    me: me ? { pid: me.pid, name: me.name, role: ownRole ?? null } : null,
   }
 }
 
 async function addPlayer(room: Room, clientId: string, name: string) {
-  const store = getStore()
-  const players = await store.getPlayers(room.code)
+  if (clientId === room.hostId) throw new HttpError(400, 'Você é o narrador desta sala')
+  const players = await getPlayers(room)
   const existing = players[clientId]
 
   const taken = Object.entries(players).some(
@@ -74,7 +92,7 @@ async function addPlayer(room: Room, clientId: string, name: string) {
   if (taken) throw new HttpError(409, 'Já tem alguém com esse nome na sala')
   if (!existing && Object.keys(players).length >= MAX_PLAYERS) throw new HttpError(409, 'A sala está cheia')
 
-  await store.setPlayer(room.code, clientId, {
+  await getStore().setPlayer(room.code, clientId, {
     pid: existing?.pid ?? randomId(),
     name,
     joinedAt: existing?.joinedAt ?? Date.now(),
@@ -103,7 +121,6 @@ app.post('/api/rooms', async (req, res) => {
     counts: DEFAULT_COUNTS,
   }
   await store.saveRoom(room)
-  if (req.body?.plays !== false) await addPlayer(room, clientId, name)
 
   res.status(201).json(await roomView(room, clientId))
 })
@@ -133,7 +150,7 @@ app.post('/api/rooms/:code/kick', async (req, res) => {
   const room = await loadRoom(req.params.code)
   requireHost(room, clientId)
 
-  const players = await getStore().getPlayers(room.code)
+  const players = await getPlayers(room)
   const target = Object.entries(players).find(([, p]) => p.pid === req.body?.pid)
   if (target) await getStore().removePlayer(room.code, target[0])
 
@@ -147,7 +164,7 @@ app.post('/api/rooms/:code/start', async (req, res) => {
 
   const counts = parseCounts(req.body?.counts)
   const store = getStore()
-  const players = await store.getPlayers(room.code)
+  const players = await getPlayers(room)
   const roles = drawRoles(Object.keys(players), counts)
 
   await store.setRoles(room.code, roles)

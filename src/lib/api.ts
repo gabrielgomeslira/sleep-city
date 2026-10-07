@@ -29,7 +29,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
 }
 
 export const api = {
-  createRoom: (name: string, plays: boolean) => request<RoomView>('POST', '/rooms', { name, plays }),
+  createRoom: (name: string) => request<RoomView>('POST', '/rooms', { name }),
   getRoom: (code: string) => request<RoomView>('GET', `/rooms/${code}`),
   join: (code: string, name: string) => request<RoomView>('POST', `/rooms/${code}/join`, { name }),
   leave: (code: string) => request<{ ok: true }>('POST', `/rooms/${code}/leave`),
