@@ -6,7 +6,6 @@ import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Switch } from '@/components/ui/switch'
 import { api } from '@/lib/api'
 import { navigate } from '@/lib/router'
 import { lastRoom, savedName } from '@/lib/session'
@@ -14,7 +13,6 @@ import { errorMessage } from '@/lib/utils'
 
 export function HomePage() {
   const [name, setName] = useState(savedName.get)
-  const [plays, setPlays] = useState(true)
   const [code, setCode] = useState('')
   const [loading, setLoading] = useState(false)
   const previousRoom = lastRoom.get()
@@ -23,7 +21,7 @@ export function HomePage() {
     e.preventDefault()
     setLoading(true)
     try {
-      const room = await api.createRoom(name, plays)
+      const room = await api.createRoom(name)
       savedName.set(name.trim())
       lastRoom.set(room.code)
       navigate(`/sala/${room.code}`)
@@ -60,13 +58,15 @@ export function HomePage() {
       <Card>
         <CardHeader>
           <CardTitle>Criar sala</CardTitle>
-          <CardDescription>Você será o dono da sala e escolherá as funções.</CardDescription>
+          <CardDescription>
+            Você será o narrador: escolhe as funções, sorteia e vê o papel de cada jogador.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={createRoom} className="flex flex-col gap-4">
             <div className="flex flex-col gap-2">
               <Label htmlFor="host-name" className="font-display text-base">
-                Seu nome
+                Nome do narrador
               </Label>
               <Input
                 id="host-name"
@@ -77,15 +77,6 @@ export function HomePage() {
                 autoComplete="off"
                 required
               />
-            </div>
-            <div className="flex items-center justify-between gap-4 rounded-2xl bg-muted p-3.5">
-              <Label htmlFor="host-plays" className="flex-col items-start gap-1 font-display text-base">
-                Também vou jogar
-                <span className="font-sans text-xs font-semibold text-muted-foreground">
-                  Desligue se você for apenas o narrador.
-                </span>
-              </Label>
-              <Switch id="host-plays" checked={plays} onCheckedChange={setPlays} />
             </div>
             <Button type="submit" variant="play" size="lg" disabled={loading || !name.trim()}>
               {loading && <Loader2 className="animate-spin" />}

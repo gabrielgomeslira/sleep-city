@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Minus, Play, Plus, RotateCcw, Shuffle, UserPlus } from 'lucide-react'
+import { Loader2, Minus, Play, Plus, RotateCcw, Shuffle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -53,9 +53,10 @@ export function HostPanel({ room, onChange }: Props) {
   return (
     <Card className="gap-4">
       <CardHeader>
-        <CardTitle>Funções da rodada</CardTitle>
+        <CardTitle>🎙️ Painel do narrador</CardTitle>
         <CardDescription>
-          Quem não tirar uma função especial vira cidadão. Ninguém (nem você) vê a função dos outros.
+          Quem não tirar uma função especial vira cidadão. Depois do sorteio, a função de cada um aparece na
+          lista de jogadores. Só você vê.
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -121,16 +122,6 @@ export function HostPanel({ room, onChange }: Props) {
         {playing && (
           <Button variant="outline" onClick={reset} disabled={busy}>
             <RotateCcw /> Encerrar e voltar ao lobby
-          </Button>
-        )}
-
-        {!room.me && (
-          <Button
-            variant="secondary"
-            onClick={() => run(() => api.join(room.code, room.hostName), 'Você entrou no sorteio!')}
-            disabled={busy}
-          >
-            <UserPlus /> Também quero jogar
           </Button>
         )}
       </CardContent>

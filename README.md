@@ -1,6 +1,6 @@
 # 🌙 Sleep City
 
-**Sleep City** é um ajudante para a brincadeira **Cidade Dorme**: uma pessoa cria a sala e compartilha o link, os amigos entram com o próprio nome, e o dono da sala sorteia **Assassinos**, **Detetives** e **SAMU**. O resto da sala fica como cidadão. Cada pessoa vê **apenas a própria função**, no próprio celular.
+**Sleep City** é um ajudante para a brincadeira **Cidade Dorme**: uma pessoa cria a sala e compartilha o link, os amigos entram com o próprio nome, e quem criou a sala — o **narrador** — sorteia **Assassinos**, **Detetives** e **SAMU**. O resto da sala fica como cidadão. Cada jogador vê **apenas a própria função**, no próprio celular; o narrador vê a de todos.
 
 - **Frontend:** React 19 + Vite + Tailwind CSS v4 + [shadcn/ui](https://ui.shadcn.com)
 - **Backend:** Node.js + Express, publicado como Vercel Function (`api/index.ts`)
@@ -11,8 +11,8 @@
 1. Quem abre o site recebe uma **sessão única naquele navegador**: um id aleatório salvo no `localStorage`, sem cadastro.
 2. Essa pessoa cria a sala e compartilha o link (`/sala/CODIGO`) copiando, pelo menu de compartilhar do celular ou mostrando o QR code.
 3. Os convidados abrem o link, escolhem um nome e entram.
-4. O dono da sala escolhe quantos assassinos, detetives e SAMU haverá e clica em **Sortear**. O sorteio acontece no servidor com `crypto.randomInt` (Fisher–Yates).
-5. O servidor devolve a cada navegador **somente a função dele**. Nem o dono da sala vê a função dos outros.
+4. O narrador (quem criou a sala, que não entra no sorteio) escolhe quantos assassinos, detetives e SAMU haverá e clica em **Sortear**. O sorteio acontece no servidor com `crypto.randomInt` (Fisher–Yates).
+5. O servidor devolve a cada jogador **somente a função dele**. Só o narrador recebe a lista com a função de todo mundo, que aparece na tela dele ao lado de cada nome.
 6. **Sortear nova rodada** sorteia as funções de novo com os mesmos jogadores.
 
 ### Privacidade na tela
@@ -64,12 +64,12 @@ Todas as rotas exigem o header `x-client-id`, que identifica a sessão do navega
 
 | Método | Rota                        | Quem         | Descrição                                   |
 | ------ | --------------------------- | ------------ | ------------------------------------------- |
-| POST   | `/api/rooms`                | qualquer um  | cria uma sala (`{ name, plays }`)           |
-| GET    | `/api/rooms/:code`          | qualquer um  | estado da sala + a **sua** função           |
+| POST   | `/api/rooms`                | qualquer um  | cria uma sala (`{ name }`)                  |
+| GET    | `/api/rooms/:code`          | qualquer um  | estado da sala + funções que você pode ver   |
 | POST   | `/api/rooms/:code/join`     | qualquer um  | entra na sala (`{ name }`)                  |
 | POST   | `/api/rooms/:code/leave`    | jogador      | sai da sala                                 |
-| POST   | `/api/rooms/:code/start`    | dono         | sorteia as funções (`{ counts }`)           |
-| POST   | `/api/rooms/:code/reset`    | dono         | encerra a rodada e volta ao lobby           |
-| POST   | `/api/rooms/:code/kick`     | dono         | remove um jogador (`{ pid }`)               |
+| POST   | `/api/rooms/:code/start`    | narrador     | sorteia as funções (`{ counts }`)           |
+| POST   | `/api/rooms/:code/reset`    | narrador     | encerra a rodada e volta ao lobby           |
+| POST   | `/api/rooms/:code/kick`     | narrador     | remove um jogador (`{ pid }`)               |
 
 As salas expiram depois de 12 horas sem alterações. Os clientes consultam o estado a cada 2,5 s, o que dá folga de sobra no plano gratuito do Upstash para uma noite de jogo.

@@ -1,10 +1,11 @@
-import { Crown, Users, X } from 'lucide-react'
+import { Users, X } from 'lucide-react'
 
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import type { PlayerView } from '@/lib/types'
+import { ROLE_BADGE, ROLE_INFO, type PlayerView } from '@/lib/types'
+import { cn } from '@/lib/utils'
 
 interface Props {
   players: PlayerView[]
@@ -35,27 +36,45 @@ export function PlayerList({ players, canKick, onKick }: Props) {
                 className="flex min-h-14 animate-pop items-center gap-3 rounded-2xl bg-muted px-2.5 py-2"
               >
                 <Avatar name={p.name} />
-                <span className="truncate font-display text-lg font-semibold text-primary-deep">{p.name}</span>
-                {p.isHost && (
-                  <Crown className="size-4 shrink-0 fill-sun text-sun-dark" aria-label="Dono da sala" />
-                )}
+                <span className="min-w-0 truncate font-display text-lg font-semibold text-primary-deep">{p.name}</span>
                 {p.isMe && <Badge className="shrink-0">você</Badge>}
-                {canKick && !p.isMe && (
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="ml-auto size-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                    onClick={() => onKick(p)}
-                    aria-label={`Remover ${p.name}`}
-                  >
-                    <X />
-                  </Button>
-                )}
+                <div className="ml-auto flex shrink-0 items-center gap-1">
+                  {p.role !== undefined && <RoleChip role={p.role} />}
+                  {canKick && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => onKick(p)}
+                      aria-label={`Remover ${p.name}`}
+                    >
+                      <X />
+                    </Button>
+                  )}
+                </div>
               </li>
             ))}
           </ul>
         )}
       </CardContent>
     </Card>
+  )
+}
+
+function RoleChip({ role }: { role: PlayerView['role'] }) {
+  if (!role) {
+    return (
+      <span className="rounded-full bg-white px-2.5 py-1 font-display text-xs font-semibold text-muted-foreground">
+        Sem função
+      </span>
+    )
+  }
+  const badge = ROLE_BADGE[role]
+  return (
+    <span
+      className={cn('rounded-full px-2.5 py-1 font-display text-sm font-semibold whitespace-nowrap', badge.className)}
+    >
+      {badge.emoji} {ROLE_INFO[role].label}
+    </span>
   )
 }
