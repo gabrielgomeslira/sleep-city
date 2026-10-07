@@ -163,8 +163,7 @@ export function RoomPage({ code }: { code: string }) {
 
           {playing && !room.isHost && (
             <p className="text-center text-sm font-bold text-white/80">
-              🎙️ Narrador: {room.hostName} · Nesta rodada: {room.counts.assassinos} assassino(s), {room.counts.detetives} detetive(s),{' '}
-              {room.counts.samu} SAMU
+              🎙️ Narrador: {room.hostName}
             </p>
           )}
 

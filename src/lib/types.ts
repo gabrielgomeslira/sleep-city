@@ -18,7 +18,8 @@ export interface RoomView {
   code: string
   status: 'lobby' | 'playing'
   round: number
-  counts: Counts
+  /** Só o narrador recebe a quantidade de cada função. */
+  counts?: Counts
   hostName: string
   isHost: boolean
   players: PlayerView[]

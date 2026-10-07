@@ -48,8 +48,8 @@ async function getPlayers(room: Room) {
 }
 
 /**
- * What a given client is allowed to see: the narrator sees everyone's role,
- * each player sees only their own.
+ * What a given client is allowed to see: the narrator sees everyone's role and
+ * how many of each role were drawn, each player sees only their own.
  */
 async function roomView(room: Room, clientId: string) {
   const store = getStore()
@@ -66,7 +66,7 @@ async function roomView(room: Room, clientId: string) {
     code: room.code,
     status: room.status,
     round: room.round,
-    counts: room.counts,
+    ...(isHost && { counts: room.counts }),
     hostName: room.hostName,
     isHost,
     players: Object.entries(players)
