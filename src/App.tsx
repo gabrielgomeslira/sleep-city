@@ -1,3 +1,4 @@
+import { ConfirmDialog } from '@/components/ui/confirm-dialog'
 import { Toaster } from '@/components/ui/sonner'
 import { usePathname } from '@/lib/router'
 import { HomePage } from '@/pages/HomePage'
@@ -14,6 +15,7 @@ export default function App() {
         {code ? <RoomPage key={code} code={code} /> : <HomePage />}
       </main>
       <Toaster />
+      <ConfirmDialog />
     </>
   )
 }

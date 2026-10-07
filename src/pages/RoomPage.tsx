@@ -10,6 +10,7 @@ import { RoleReveal } from '@/components/RoleReveal'
 import { SharePanel } from '@/components/SharePanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { confirmDialog } from '@/components/ui/confirm-dialog'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { api, ApiError } from '@/lib/api'
 import { navigate } from '@/lib/router'
@@ -95,7 +96,14 @@ export function RoomPage({ code }: { code: string }) {
   }
 
   async function kick(player: PlayerView) {
-    if (!confirm(`Remover ${player.name} da sala?`)) return
+    const ok = await confirmDialog({
+      emoji: '👋',
+      title: `Remover ${player.name}?`,
+      description: 'Essa pessoa sai da lista de jogadores da sala.',
+      confirmText: 'Remover',
+      variant: 'destructive',
+    })
+    if (!ok) return
     try {
       setRoom(await api.kick(code, player.pid))
     } catch (err) {
@@ -104,7 +112,14 @@ export function RoomPage({ code }: { code: string }) {
   }
 
   async function leave() {
-    if (!confirm('Sair da sala?')) return
+    const ok = await confirmDialog({
+      emoji: '🚪',
+      title: 'Sair da sala?',
+      description: 'Você sai da lista de jogadores desta sala.',
+      confirmText: 'Sair',
+      variant: 'destructive',
+    })
+    if (!ok) return
     try {
       await api.leave(code)
       lastRoom.set('')
