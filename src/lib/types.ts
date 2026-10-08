@@ -6,10 +6,28 @@ export interface Counts {
   samu: number
 }
 
+export type Phase = 'night' | 'day'
+
+export interface Mark {
+  pid: string
+  name: string
+}
+
+/** Noite N e o dia que vem depois dela. */
+export interface TurnView {
+  killed: Mark[]
+  /** null enquanto o dia ainda não acabou. */
+  voted: Mark[] | null
+  /** Só o narrador recebe quem foi atacado e quem o SAMU salvou. */
+  attacked?: Mark[]
+  saved?: Mark[]
+}
+
 export interface PlayerView {
   pid: string
   name: string
   isMe: boolean
+  dead: boolean
   /** Só vem preenchido para o narrador, durante uma rodada. */
   role?: Role | null
 }
@@ -18,12 +36,30 @@ export interface RoomView {
   code: string
   status: 'lobby' | 'playing'
   round: number
+  /** Só durante uma rodada. */
+  phase: Phase | null
+  turns: TurnView[]
   /** Só o narrador recebe a quantidade de cada função. */
   counts?: Counts
   hostName: string
   isHost: boolean
   players: PlayerView[]
-  me: { pid: string; name: string; role: Role | null } | null
+  me: { pid: string; name: string; role: Role | null; dead: boolean } | null
+}
+
+/** Noite 1 → Dia 1 → Noite 2… O dia N vem depois da noite N. */
+export function phaseNumber(room: Pick<RoomView, 'phase' | 'turns'>) {
+  return room.phase === 'day' ? room.turns.length : room.turns.length + 1
+}
+
+export const PHASE_INFO: Record<Phase, { emoji: string; label: string }> = {
+  night: { emoji: '🌙', label: 'Noite' },
+  day: { emoji: '☀️', label: 'Dia' },
+}
+
+export function names(marks: Mark[]) {
+  const list = marks.map((m) => m.name)
+  return list.length <= 1 ? (list[0] ?? '') : `${list.slice(0, -1).join(', ')} e ${list[list.length - 1]}`
 }
 
 // Emojis e cores só aparecem na tela do narrador; a tela dos jogadores é igual para todas as funções.

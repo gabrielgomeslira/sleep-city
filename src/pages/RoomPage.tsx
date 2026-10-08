@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Loader2, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { Announcement, useAnnouncement } from '@/components/Announcement'
 import { AppHeader } from '@/components/AppHeader'
 import { HostPanel } from '@/components/HostPanel'
 import { JoinForm } from '@/components/JoinForm'
+import { PhaseBar } from '@/components/PhaseBar'
 import { PlayerList } from '@/components/PlayerList'
 import { RoleReveal } from '@/components/RoleReveal'
 import { SharePanel } from '@/components/SharePanel'
+import { TurnHistory } from '@/components/TurnHistory'
+import { TurnPanel } from '@/components/TurnPanel'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { confirmDialog } from '@/components/ui/confirm-dialog'
@@ -62,6 +66,24 @@ export function RoomPage({ code }: { code: string }) {
     if (joined) lastRoom.set(code)
   }, [joined, code])
 
+  // Avisa todo mundo na sala quando a narração passa para outra pessoa.
+  const hostName = room?.hostName
+  const isHost = room?.isHost
+  const lastHostName = useRef(hostName)
+  useEffect(() => {
+    const previous = lastHostName.current
+    lastHostName.current = hostName
+    if (!previous || !hostName || previous === hostName || !joined) return
+    if (isHost) {
+      toast('🎙️ Agora você é o narrador!', { description: 'Escolha as funções e sorteie a próxima rodada.' })
+    } else {
+      toast(`🎙️ ${hostName} agora é o narrador`)
+    }
+  }, [hostName, isHost, joined])
+
+  // Nova rodada, amanhecer e anoitecer aparecem em tela cheia para os jogadores.
+  const { announcement, dismiss } = useAnnouncement(room, joined && !room?.isHost)
+
   if (notFound) {
     return (
       <>
@@ -111,6 +133,23 @@ export function RoomPage({ code }: { code: string }) {
     }
   }
 
+  async function makeNarrator(player: PlayerView) {
+    const ok = await confirmDialog({
+      emoji: '🎙️',
+      title: `Passar a narração para ${player.name}?`,
+      description:
+        `${player.name} vira o narrador e você entra na sala como jogador comum.` +
+        (room?.status === 'playing' ? ' A rodada atual é encerrada e todos voltam para o lobby.' : ''),
+      confirmText: 'Passar',
+    })
+    if (!ok) return
+    try {
+      setRoom(await api.transfer(code, player.pid))
+    } catch (err) {
+      toast.error(errorMessage(err))
+    }
+  }
+
   async function leave() {
     const ok = await confirmDialog({
       emoji: '🚪',
@@ -144,11 +183,35 @@ export function RoomPage({ code }: { code: string }) {
 
       {!joined ? (
         <JoinForm room={room} onJoined={setRoom} />
+      ) : room.isHost ? (
+        <>
+          <PhaseBar room={room} />
+          {playing && (
+            <TurnPanel key={`${room.round}-${room.phase}-${room.turns.length}`} room={room} onChange={setRoom} />
+          )}
+          {playing && <PlayerList players={room.players} canManage onKick={kick} onMakeNarrator={makeNarrator} />}
+          <TurnHistory room={room} />
+          <HostPanel room={room} onChange={setRoom} />
+          <SharePanel code={room.code} />
+          {!playing && <PlayerList players={room.players} canManage onKick={kick} onMakeNarrator={makeNarrator} />}
+        </>
       ) : (
         <>
+          <PhaseBar room={room} />
+
+          {playing && room.me?.dead && (
+            <div className="flex animate-pop items-center gap-3 rounded-3xl bg-primary-deep px-4 py-3 text-white shadow-[0_6px_0_rgb(0_0_0/0.25)]">
+              <span className="text-4xl">💀</span>
+              <div>
+                <p className="font-display text-lg font-semibold">Você está fora desta rodada</p>
+                <p className="text-sm font-bold text-white/80">Fique em silêncio até o próximo sorteio.</p>
+              </div>
+            </div>
+          )}
+
           {playing && room.me && <RoleReveal role={room.me.role} round={room.round} />}
 
-          {!playing && !room.isHost && (
+          {!playing && (
             <Card>
               <CardContent className="flex flex-col items-center gap-2 py-2 text-center">
                 <span className="animate-float text-5xl">😴</span>
@@ -161,23 +224,19 @@ export function RoomPage({ code }: { code: string }) {
             </Card>
           )}
 
-          {playing && !room.isHost && (
-            <p className="text-center text-sm font-bold text-white/80">
-              🎙️ Narrador: {room.hostName}
-            </p>
-          )}
+          {playing && <p className="text-center text-sm font-bold text-white/80">🎙️ Narrador: {room.hostName}</p>}
 
-          {room.isHost && <HostPanel room={room} onChange={setRoom} />}
-          {(room.isHost || !playing) && <SharePanel code={room.code} />}
-          <PlayerList players={room.players} canKick={room.isHost} onKick={kick} />
+          <TurnHistory room={room} />
+          {!playing && <SharePanel code={room.code} />}
+          <PlayerList players={room.players} canManage={false} onKick={kick} onMakeNarrator={makeNarrator} />
 
-          {!room.isHost && (
-            <Button variant="ghost" className="text-white/80 hover:bg-white/10 hover:text-white" onClick={leave}>
-              <LogOut /> Sair da sala
-            </Button>
-          )}
+          <Button variant="ghost" className="text-white/80 hover:bg-white/10 hover:text-white" onClick={leave}>
+            <LogOut /> Sair da sala
+          </Button>
         </>
       )}
+
+      <Announcement data={announcement} onClose={dismiss} />
     </>
   )
 }

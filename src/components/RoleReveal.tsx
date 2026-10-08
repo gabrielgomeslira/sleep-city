@@ -1,6 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
+import { useEffect, useState, type KeyboardEvent } from 'react'
 import { Eye, EyeOff } from 'lucide-react'
-import { toast } from 'sonner'
 
 import { Card, CardContent } from '@/components/ui/card'
 import { ROLE_INFO, type Role } from '@/lib/types'
@@ -13,15 +12,9 @@ import { cn } from '@/lib/utils'
  */
 export function RoleReveal({ role, round }: { role: Role | null; round: number }) {
   const [revealed, setRevealed] = useState(false)
-  const lastRound = useRef(round)
 
-  useEffect(() => {
-    setRevealed(false)
-    if (round !== lastRound.current) {
-      lastRound.current = round
-      toast('🌙 Nova rodada sorteada!', { description: 'Segure o botão para ver sua função.' })
-    }
-  }, [round])
+  // O aviso de nova rodada é o Announcement em tela cheia; aqui só escondemos a função antiga.
+  useEffect(() => setRevealed(false), [round])
 
   useEffect(() => {
     const hide = () => setRevealed(false)
@@ -39,7 +32,7 @@ export function RoleReveal({ role, round }: { role: Role | null; round: number }
     return (
       <Card>
         <CardContent className="py-2 text-center font-bold text-muted-foreground">
-          Você entrou depois do sorteio. Aguarde o dono da sala sortear a próxima rodada.
+          Você entrou depois do sorteio. Aguarde o narrador sortear a próxima rodada.
         </CardContent>
       </Card>
     )
@@ -54,7 +47,7 @@ export function RoleReveal({ role, round }: { role: Role | null; round: number }
   }
 
   return (
-    <Card className="gap-4 py-5">
+    <Card id="sua-funcao" className="scroll-mt-4 gap-4 py-5">
       <CardContent className="flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <span className="font-display text-lg font-semibold text-primary-deep">Sua função</span>
