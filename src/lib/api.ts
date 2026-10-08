@@ -34,6 +34,11 @@ export const api = {
   join: (code: string, name: string) => request<RoomView>('POST', `/rooms/${code}/join`, { name }),
   leave: (code: string) => request<{ ok: true }>('POST', `/rooms/${code}/leave`),
   kick: (code: string, pid: string) => request<RoomView>('POST', `/rooms/${code}/kick`, { pid }),
+  transfer: (code: string, pid: string) => request<RoomView>('POST', `/rooms/${code}/transfer`, { pid }),
   start: (code: string, counts: Counts) => request<RoomView>('POST', `/rooms/${code}/start`, { counts }),
+  dawn: (code: string, attacked: string[], saved: string[]) =>
+    request<RoomView>('POST', `/rooms/${code}/dawn`, { attacked, saved }),
+  dusk: (code: string, voted: string[]) => request<RoomView>('POST', `/rooms/${code}/dusk`, { voted }),
+  undo: (code: string) => request<RoomView>('POST', `/rooms/${code}/undo`),
   reset: (code: string) => request<RoomView>('POST', `/rooms/${code}/reset`),
 }

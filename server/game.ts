@@ -8,14 +8,36 @@ export interface Counts {
   samu: number
 }
 
+export type Phase = 'night' | 'day'
+
+/** A player as recorded in the round log (public id + name at the time). */
+export interface Mark {
+  pid: string
+  name: string
+}
+
+/** Night N (who was attacked/saved) and the day that follows it (who the town voted out). */
+export interface Turn {
+  attacked: Mark[]
+  saved: Mark[]
+  /** null while the day is still going on. */
+  voted: Mark[] | null
+}
+
 export interface Room {
   code: string
   hostId: string
   hostName: string
+  /** Player id/entry time kept while someone narrates, so they get them back when they hand it over. */
+  hostPid?: string
+  hostJoinedAt?: number
   createdAt: number
   status: 'lobby' | 'playing'
   round: number
   counts: Counts
+  /** Only while playing; optional so rooms saved before this existed still load. */
+  phase?: Phase
+  turns?: Turn[]
 }
 
 export interface Player {
@@ -98,4 +120,19 @@ export function drawRoles(clientIds: string[], counts: Counts): Record<string, R
 
   const roles = shuffle(pool)
   return Object.fromEntries(clientIds.map((id, i) => [id, roles[i]]))
+}
+
+/** Attacked and not saved by the SAMU. */
+export function killedIn(turn: Turn): Mark[] {
+  const saved = new Set(turn.saved.map((m) => m.pid))
+  return turn.attacked.filter((m) => !saved.has(m.pid))
+}
+
+export function deadPids(turns: Turn[]): Set<string> {
+  const dead = new Set<string>()
+  for (const turn of turns) {
+    for (const m of killedIn(turn)) dead.add(m.pid)
+    for (const m of turn.voted ?? []) dead.add(m.pid)
+  }
+  return dead
 }

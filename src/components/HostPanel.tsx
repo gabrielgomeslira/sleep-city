@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Loader2, Minus, Play, Plus, RotateCcw, Shuffle } from 'lucide-react'
+import { Loader2, Minus, Play, Plus, RotateCcw, Settings2, Shuffle } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { Button } from '@/components/ui/button'
@@ -23,6 +23,7 @@ interface Props {
 export function HostPanel({ room, onChange }: Props) {
   const [counts, setCounts] = useState<Counts>(room.counts ?? { assassinos: 0, detetives: 0, samu: 0 })
   const [busy, setBusy] = useState(false)
+  const [editing, setEditing] = useState(false)
 
   const total = room.players.length
   const special = counts.assassinos + counts.detetives + counts.samu
@@ -70,14 +71,30 @@ export function HostPanel({ room, onChange }: Props) {
   return (
     <Card className="gap-4">
       <CardHeader>
-        <CardTitle>🎙️ Painel do narrador</CardTitle>
+        <CardTitle>{playing ? '🔀 Próxima rodada' : '🎙️ Painel do narrador'}</CardTitle>
         <CardDescription>
-          Quem não tirar uma função especial vira cidadão. Depois do sorteio, a função de cada um aparece na
-          lista de jogadores. Só você vê.
+          {playing
+            ? `Rodada ${room.round} em andamento. Sorteie de novo quando o jogo acabar.`
+            : 'Quem não tirar uma função especial vira cidadão. Depois do sorteio, a função de cada um aparece na lista de jogadores. Só você vê. Para passar a narração, toque em 🎙️ ao lado de um jogador.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        <div className="flex flex-col gap-2">
+        {playing && !editing && (
+          <div className="flex items-center justify-between gap-2 rounded-2xl bg-muted py-2 pr-2 pl-3">
+            <span className="flex flex-wrap gap-x-3 font-display text-lg font-semibold text-primary-deep tabular-nums">
+              {FIELDS.map(({ key, label, emoji }) => (
+                <span key={key} title={label}>
+                  {emoji} {counts[key]}
+                </span>
+              ))}
+              <span title="Cidadãos">🏠 {Math.max(citizens, 0)}</span>
+            </span>
+            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
+              <Settings2 /> Ajustar
+            </Button>
+          </div>
+        )}
+        <div className={cn('flex flex-col gap-2', playing && !editing && 'hidden')}>
           {FIELDS.map(({ key, label, emoji }) => (
             <div key={key} className="flex items-center justify-between gap-3 rounded-2xl bg-muted py-2 pr-2 pl-3">
               <span className="flex items-center gap-2 font-display text-lg font-semibold text-primary-deep">

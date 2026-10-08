@@ -3,12 +3,16 @@ import {
   DEFAULT_COUNTS,
   HttpError,
   MAX_PLAYERS,
+  deadPids,
   drawRoles,
+  killedIn,
   parseCode,
   parseCounts,
   parseName,
   randomCode,
   randomId,
+  type Mark,
+  type Phase,
   type Room,
 } from './game.js'
 import { getStore } from './store.js'
@@ -37,10 +41,10 @@ async function loadRoom(code: string): Promise<Room> {
 }
 
 function requireHost(room: Room, clientId: string) {
-  if (room.hostId !== clientId) throw new HttpError(403, 'Apenas quem criou a sala pode fazer isso')
+  if (room.hostId !== clientId) throw new HttpError(403, 'Apenas o narrador pode fazer isso')
 }
 
-/** The room creator is always the narrator: never part of the draw. */
+/** The narrator (the room creator, or whoever they handed it to) is never part of the draw. */
 async function getPlayers(room: Room) {
   const players = await getStore().getPlayers(room.code)
   delete players[room.hostId]
@@ -50,6 +54,7 @@ async function getPlayers(room: Room) {
 /**
  * What a given client is allowed to see: the narrator sees everyone's role and
  * how many of each role were drawn, each player sees only their own.
+ * Deaths are public; who was attacked/saved at night only the narrator sees.
  */
 async function roomView(room: Room, clientId: string) {
   const store = getStore()
@@ -61,11 +66,19 @@ async function roomView(room: Room, clientId: string) {
     playing && !isHost ? store.getRole(room.code, clientId) : null,
   ])
   const me = players[clientId]
+  const turns = playing ? (room.turns ?? []) : []
+  const dead = deadPids(turns)
 
   return {
     code: room.code,
     status: room.status,
     round: room.round,
+    phase: playing ? (room.phase ?? 'night') : null,
+    turns: turns.map((t) => ({
+      killed: killedIn(t),
+      voted: t.voted,
+      ...(isHost && { attacked: t.attacked, saved: t.saved }),
+    })),
     ...(isHost && { counts: room.counts }),
     hostName: room.hostName,
     isHost,
@@ -75,9 +88,10 @@ async function roomView(room: Room, clientId: string) {
         pid: p.pid,
         name: p.name,
         isMe: id === clientId,
+        dead: dead.has(p.pid),
         ...(roles && { role: roles[id] ?? null }),
       })),
-    me: me ? { pid: me.pid, name: me.name, role: ownRole ?? null } : null,
+    me: me ? { pid: me.pid, name: me.name, role: ownRole ?? null, dead: dead.has(me.pid) } : null,
   }
 }
 
@@ -86,9 +100,12 @@ async function addPlayer(room: Room, clientId: string, name: string) {
   const players = await getPlayers(room)
   const existing = players[clientId]
 
-  const taken = Object.entries(players).some(
-    ([id, p]) => id !== clientId && p.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
-  )
+  // The narrator counts too: they can become a player again when they hand over the role.
+  const taken =
+    room.hostName.toLocaleLowerCase() === name.toLocaleLowerCase() ||
+    Object.entries(players).some(
+      ([id, p]) => id !== clientId && p.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
+    )
   if (taken) throw new HttpError(409, 'Já tem alguém com esse nome na sala')
   if (!existing && Object.keys(players).length >= MAX_PLAYERS) throw new HttpError(409, 'A sala está cheia')
 
@@ -157,6 +174,50 @@ app.post('/api/rooms/:code/kick', async (req, res) => {
   res.json(await roomView(room, clientId))
 })
 
+/**
+ * Hands the narration to another player: they leave the player list and the
+ * current narrator joins it as a regular player. The narrator knows everyone's
+ * role, so an ongoing round is ended and everyone goes back to the lobby.
+ */
+app.post('/api/rooms/:code/transfer', async (req, res) => {
+  const clientId = getClientId(req)
+  const room = await loadRoom(req.params.code)
+  requireHost(room, clientId)
+
+  const store = getStore()
+  const players = await getPlayers(room)
+  const target = Object.entries(players).find(([, p]) => p.pid === req.body?.pid)
+  if (!target) throw new HttpError(404, 'Jogador não encontrado na sala')
+  const [newHostId, newHost] = target
+
+  const nameTaken = Object.entries(players).some(
+    ([id, p]) => id !== newHostId && p.name.toLocaleLowerCase() === room.hostName.toLocaleLowerCase(),
+  )
+  if (nameTaken) throw new HttpError(409, `Já tem um jogador chamado ${room.hostName} na sala`)
+
+  await store.removePlayer(room.code, newHostId)
+  await store.setPlayer(room.code, room.hostId, {
+    pid: room.hostPid ?? randomId(),
+    name: room.hostName,
+    joinedAt: room.hostJoinedAt ?? room.createdAt,
+  })
+  if (room.status === 'playing') await store.clearRoles(room.code)
+
+  const updated: Room = {
+    ...room,
+    hostId: newHostId,
+    hostName: newHost.name,
+    hostPid: newHost.pid,
+    hostJoinedAt: newHost.joinedAt,
+    status: 'lobby',
+    phase: undefined,
+    turns: [],
+  }
+  await store.saveRoom(updated)
+
+  res.json(await roomView(updated, clientId))
+})
+
 app.post('/api/rooms/:code/start', async (req, res) => {
   const clientId = getClientId(req)
   const room = await loadRoom(req.params.code)
@@ -168,7 +229,7 @@ app.post('/api/rooms/:code/start', async (req, res) => {
   const roles = drawRoles(Object.keys(players), counts)
 
   await store.setRoles(room.code, roles)
-  const updated: Room = { ...room, status: 'playing', round: room.round + 1, counts }
+  const updated: Room = { ...room, status: 'playing', round: room.round + 1, counts, phase: 'night', turns: [] }
   await store.saveRoom(updated)
 
   res.json(await roomView(updated, clientId))
@@ -180,7 +241,83 @@ app.post('/api/rooms/:code/reset', async (req, res) => {
   requireHost(room, clientId)
 
   await getStore().clearRoles(room.code)
-  const updated: Room = { ...room, status: 'lobby' }
+  const updated: Room = { ...room, status: 'lobby', phase: undefined, turns: [] }
+  await getStore().saveRoom(updated)
+
+  res.json(await roomView(updated, clientId))
+})
+
+function requirePhase(room: Room, phase: Phase) {
+  if (room.status !== 'playing') throw new HttpError(409, 'Sorteie as funções primeiro')
+  if ((room.phase ?? 'night') !== phase) throw new HttpError(409, 'A rodada já mudou, atualize a tela')
+}
+
+/** Turns a list of pids into alive players that are part of the current round. */
+async function pickAlive(room: Room, value: unknown): Promise<Mark[]> {
+  if (!Array.isArray(value) || value.length > MAX_PLAYERS) throw new HttpError(400, 'Seleção inválida')
+  const [players, roles] = await Promise.all([getPlayers(room), getStore().getRoles(room.code)])
+  const dead = deadPids(room.turns ?? [])
+  const inRound = new Map(
+    Object.entries(players)
+      .filter(([id]) => roles[id])
+      .map(([, p]) => [p.pid, p]),
+  )
+  return [...new Set(value)].map((pid) => {
+    const p = typeof pid === 'string' ? inRound.get(pid) : undefined
+    if (!p || dead.has(p.pid)) throw new HttpError(400, 'Escolha apenas jogadores vivos desta rodada')
+    return { pid: p.pid, name: p.name }
+  })
+}
+
+/** Ends the night: whoever was attacked and not saved dies. */
+app.post('/api/rooms/:code/dawn', async (req, res) => {
+  const clientId = getClientId(req)
+  const room = await loadRoom(req.params.code)
+  requireHost(room, clientId)
+  requirePhase(room, 'night')
+
+  const attacked = await pickAlive(room, req.body?.attacked)
+  const saved = await pickAlive(room, req.body?.saved)
+  const updated: Room = { ...room, phase: 'day', turns: [...(room.turns ?? []), { attacked, saved, voted: null }] }
+  await getStore().saveRoom(updated)
+
+  res.json(await roomView(updated, clientId))
+})
+
+/** Ends the day: whoever the town voted out dies, and the next night starts. */
+app.post('/api/rooms/:code/dusk', async (req, res) => {
+  const clientId = getClientId(req)
+  const room = await loadRoom(req.params.code)
+  requireHost(room, clientId)
+  requirePhase(room, 'day')
+
+  const voted = await pickAlive(room, req.body?.voted)
+  const turns = [...(room.turns ?? [])]
+  turns[turns.length - 1] = { ...turns[turns.length - 1], voted }
+  const updated: Room = { ...room, phase: 'night', turns }
+  await getStore().saveRoom(updated)
+
+  res.json(await roomView(updated, clientId))
+})
+
+/** Takes back the last dawn or dusk, so the narrator can fix a wrong tap. */
+app.post('/api/rooms/:code/undo', async (req, res) => {
+  const clientId = getClientId(req)
+  const room = await loadRoom(req.params.code)
+  requireHost(room, clientId)
+  if (room.status !== 'playing') throw new HttpError(409, 'Sorteie as funções primeiro')
+
+  const turns = [...(room.turns ?? [])]
+  if (turns.length === 0) throw new HttpError(409, 'Nada para desfazer')
+  let phase: Phase
+  if ((room.phase ?? 'night') === 'day') {
+    turns.pop()
+    phase = 'night'
+  } else {
+    turns[turns.length - 1] = { ...turns[turns.length - 1], voted: null }
+    phase = 'day'
+  }
+  const updated: Room = { ...room, phase, turns }
   await getStore().saveRoom(updated)
 
   res.json(await roomView(updated, clientId))
