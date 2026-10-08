@@ -29,6 +29,8 @@ export function TurnPanel({ room, onChange }: Props) {
   const night = room.phase === 'night'
   const number = phaseNumber(room)
   const alive = room.players.filter((p) => p.role && !p.dead)
+  // Assassinos não atacam uns aos outros; o SAMU e a votação podem escolher qualquer um.
+  const targets = alive.filter((p) => p.role !== 'assassino')
   const byPid = new Map(alive.map((p) => [p.pid, p]))
   const pick = (pids: string[]) => pids.flatMap((pid) => byPid.get(pid) ?? [])
 
@@ -103,7 +105,7 @@ export function TurnPanel({ room, onChange }: Props) {
               emoji="🔪"
               label="Os assassinos atacaram"
               tone="red"
-              players={alive}
+              players={targets}
               selected={attacked}
               onChange={setAttacked}
             />
