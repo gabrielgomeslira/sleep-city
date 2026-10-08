@@ -13,6 +13,7 @@ import {
   randomId,
   type Mark,
   type Phase,
+  type Role,
   type Room,
 } from './game.js'
 import { getStore } from './store.js'
@@ -253,13 +254,13 @@ function requirePhase(room: Room, phase: Phase) {
 }
 
 /** Turns a list of pids into alive players that are part of the current round. */
-async function pickAlive(room: Room, value: unknown): Promise<Mark[]> {
+async function pickAlive(room: Room, value: unknown, { exclude }: { exclude?: Role } = {}): Promise<Mark[]> {
   if (!Array.isArray(value) || value.length > MAX_PLAYERS) throw new HttpError(400, 'Seleção inválida')
   const [players, roles] = await Promise.all([getPlayers(room), getStore().getRoles(room.code)])
   const dead = deadPids(room.turns ?? [])
   const inRound = new Map(
     Object.entries(players)
-      .filter(([id]) => roles[id])
+      .filter(([id]) => roles[id] && roles[id] !== exclude)
       .map(([, p]) => [p.pid, p]),
   )
   return [...new Set(value)].map((pid) => {
@@ -276,7 +277,7 @@ app.post('/api/rooms/:code/dawn', async (req, res) => {
   requireHost(room, clientId)
   requirePhase(room, 'night')
 
-  const attacked = await pickAlive(room, req.body?.attacked)
+  const attacked = await pickAlive(room, req.body?.attacked, { exclude: 'assassino' })
   const saved = await pickAlive(room, req.body?.saved)
   const updated: Room = { ...room, phase: 'day', turns: [...(room.turns ?? []), { attacked, saved, voted: null }] }
   await getStore().saveRoom(updated)
