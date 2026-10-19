@@ -13,6 +13,8 @@ const FIELDS: { key: keyof Counts; label: string; emoji: string }[] = [
   { key: 'assassinos', label: 'Assassinos', emoji: '🔪' },
   { key: 'detetives', label: 'Detetives', emoji: '🔍' },
   { key: 'samu', label: 'SAMU', emoji: '🚑' },
+  { key: 'espelhos', label: 'Espelhos', emoji: '🪞' },
+  { key: 'justiceiros', label: 'Justiceiros', emoji: '🔫' },
 ]
 
 interface Props {
@@ -21,12 +23,14 @@ interface Props {
 }
 
 export function HostPanel({ room, onChange }: Props) {
-  const [counts, setCounts] = useState<Counts>(room.counts ?? { assassinos: 0, detetives: 0, samu: 0 })
+  const [counts, setCounts] = useState<Counts>(
+    room.counts ?? { assassinos: 0, detetives: 0, samu: 0, espelhos: 0, justiceiros: 0 },
+  )
   const [busy, setBusy] = useState(false)
   const [editing, setEditing] = useState(false)
 
   const total = room.players.length
-  const special = counts.assassinos + counts.detetives + counts.samu
+  const special = FIELDS.reduce((sum, { key }) => sum + counts[key], 0)
   const citizens = total - special
   const playing = room.status === 'playing'
 

@@ -82,8 +82,9 @@ function announcementFor(room: RoomView, seen: Stage): AnnouncementData | null {
       return {
         emoji: '💀',
         kicker,
-        title: 'Você foi assassinado!',
-        description: 'Os assassinos te pegaram esta noite. Fique em silêncio até o fim da rodada.',
+        // Sem dizer como: pode ter sido os assassinos, o Espelho ou o Justiceiro (inclusive de culpa).
+        title: 'Você morreu esta noite!',
+        description: 'Fique em silêncio até o fim da rodada e não revele sua função.',
         tone: 'dead',
         confirmText: 'Entendi',
       }
@@ -93,7 +94,7 @@ function announcementFor(room: RoomView, seen: Stage): AnnouncementData | null {
       kicker: `Amanheceu · ${kicker}`,
       title,
       description: last.killed.length
-        ? `${was(last.killed, 'foi assassinado(a)', 'foram assassinados')} esta noite.`
+        ? `${was(last.killed, 'morreu', 'morreram')} esta noite.`
         : 'Ninguém morreu esta noite!',
       tone: 'day',
       confirmText: 'Entendi',

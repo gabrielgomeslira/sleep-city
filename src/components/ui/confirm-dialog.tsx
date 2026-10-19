@@ -2,6 +2,7 @@ import { useEffect, useId, useRef, useSyncExternalStore } from 'react'
 
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
+import { cn } from '@/lib/utils'
 
 // Substitui o confirm() do navegador por um modal no visual do jogo.
 // Uso: if (!(await confirmDialog({ title: 'Sair da sala?' }))) return
@@ -12,6 +13,8 @@ export interface ConfirmOptions {
   emoji?: string
   confirmText?: string
   cancelText?: string
+  /** Só um botão: é um aviso, não uma pergunta. */
+  notice?: boolean
   variant?: 'default' | 'success' | 'destructive'
 }
 
@@ -83,11 +86,13 @@ export function ConfirmDialog() {
               </p>
             )}
           </div>
-          <div className="grid w-full grid-cols-2 gap-3 pt-1">
-            <Button variant="outline" autoFocus onClick={() => settle(false)}>
-              {view.cancelText ?? 'Cancelar'}
-            </Button>
-            <Button variant={view.variant ?? 'default'} onClick={() => settle(true)}>
+          <div className={cn('grid w-full gap-3 pt-1', view.notice ? 'grid-cols-1' : 'grid-cols-2')}>
+            {!view.notice && (
+              <Button variant="outline" autoFocus onClick={() => settle(false)}>
+                {view.cancelText ?? 'Cancelar'}
+              </Button>
+            )}
+            <Button variant={view.variant ?? 'default'} autoFocus={view.notice} onClick={() => settle(true)}>
               {view.confirmText ?? 'Confirmar'}
             </Button>
           </div>

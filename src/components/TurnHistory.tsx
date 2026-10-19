@@ -31,6 +31,16 @@ export function TurnHistory({ room }: { room: RoomView }) {
                     {turn.saved && turn.saved.length > 0 && <> · 🚑 Salvou: {names(turn.saved)}</>}
                   </p>
                 )}
+                {turn.reflected?.map((r) => (
+                  <p key={r.mirror.pid}>
+                    🪞 {r.mirror.name} devolveu o ataque para {r.assassin.name}
+                  </p>
+                ))}
+                {turn.shots?.map((s) => (
+                  <p key={s.by.pid}>
+                    🔫 {s.by.name} atirou em {s.target.name}
+                  </p>
+                ))}
                 <p className={cn(turn.killed.length > 0 && 'text-destructive')}>
                   {turn.killed.length
                     ? `💀 ${names(turn.killed)} ${turn.killed.length > 1 ? 'morreram' : 'morreu'}`

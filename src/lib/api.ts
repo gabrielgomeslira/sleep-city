@@ -36,8 +36,8 @@ export const api = {
   kick: (code: string, pid: string) => request<RoomView>('POST', `/rooms/${code}/kick`, { pid }),
   transfer: (code: string, pid: string) => request<RoomView>('POST', `/rooms/${code}/transfer`, { pid }),
   start: (code: string, counts: Counts) => request<RoomView>('POST', `/rooms/${code}/start`, { counts }),
-  dawn: (code: string, attacked: string[], saved: string[]) =>
-    request<RoomView>('POST', `/rooms/${code}/dawn`, { attacked, saved }),
+  dawn: (code: string, attacked: string[], saved: string[], shots: { by: string; target: string }[]) =>
+    request<RoomView>('POST', `/rooms/${code}/dawn`, { attacked, saved, shots }),
   dusk: (code: string, voted: string[]) => request<RoomView>('POST', `/rooms/${code}/dusk`, { voted }),
   undo: (code: string) => request<RoomView>('POST', `/rooms/${code}/undo`),
   reset: (code: string) => request<RoomView>('POST', `/rooms/${code}/reset`),

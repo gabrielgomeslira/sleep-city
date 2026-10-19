@@ -1,26 +1,35 @@
-export type Role = 'assassino' | 'detetive' | 'samu' | 'cidadao'
+import type { Mark, Reflection, Role, Shot } from '@shared/night'
+
+export type { Mark, Role } from '@shared/night'
 
 export interface Counts {
   assassinos: number
   detetives: number
   samu: number
+  espelhos: number
+  justiceiros: number
 }
 
 export type Phase = 'night' | 'day'
-
-export interface Mark {
-  pid: string
-  name: string
-}
 
 /** Noite N e o dia que vem depois dela. */
 export interface TurnView {
   killed: Mark[]
   /** null enquanto o dia ainda não acabou. */
   voted: Mark[] | null
-  /** Só o narrador recebe quem foi atacado e quem o SAMU salvou. */
+  /** Só o narrador recebe o que aconteceu de noite: ataques, SAMU, Espelho e Justiceiro. */
   attacked?: Mark[]
   saved?: Mark[]
+  shots?: Shot[]
+  reflected?: Reflection[]
+}
+
+/** Sorteado pelo servidor quando a noite começa; só o narrador recebe. */
+export interface NightView {
+  /** Escolhe para qual assassino o Espelho devolve o ataque. */
+  seed: number
+  /** pids dos Justiceiros que têm vez nesta noite. */
+  justiceiros: string[]
 }
 
 export interface PlayerView {
@@ -41,6 +50,8 @@ export interface RoomView {
   turns: TurnView[]
   /** Só o narrador recebe a quantidade de cada função. */
   counts?: Counts
+  /** Só o narrador, durante a noite. */
+  night?: NightView | null
   hostName: string
   isHost: boolean
   players: PlayerView[]
@@ -67,6 +78,8 @@ export const ROLE_BADGE: Record<Role, { emoji: string; className: string }> = {
   assassino: { emoji: '🔪', className: 'bg-red-100 text-red-700' },
   detetive: { emoji: '🔍', className: 'bg-sky-100 text-sky-700' },
   samu: { emoji: '🚑', className: 'bg-emerald-100 text-emerald-700' },
+  espelho: { emoji: '🪞', className: 'bg-violet-100 text-violet-700' },
+  justiceiro: { emoji: '🔫', className: 'bg-amber-100 text-amber-800' },
   cidadao: { emoji: '🏠', className: 'bg-secondary text-secondary-foreground' },
 }
 
@@ -83,6 +96,14 @@ export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
   samu: {
     label: 'SAMU',
     description: 'À noite, escolha alguém para salvar caso essa pessoa seja atacada.',
+  },
+  espelho: {
+    label: 'Espelho',
+    description: 'Se os assassinos te atacarem, o golpe volta para um deles. Só uma vez.',
+  },
+  justiceiro: {
+    label: 'Justiceiro',
+    description: 'Em noites sorteadas, atire em alguém. Se for inocente, morre de culpa.',
   },
   cidadao: {
     label: 'Cidadão',

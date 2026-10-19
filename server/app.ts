@@ -1,4 +1,5 @@
 import express, { type NextFunction, type Request, type Response } from 'express'
+import { resolveNight, usedMirrors, winner, type NightPlayer, type NightResult, type Shot } from '../shared/night.js'
 import {
   DEFAULT_COUNTS,
   HttpError,
@@ -6,6 +7,7 @@ import {
   deadPids,
   drawRoles,
   killedIn,
+  newNight,
   parseCode,
   parseCounts,
   parseName,
@@ -13,7 +15,9 @@ import {
   randomId,
   rememberRoles,
   streakRole,
+  withAllCounts,
   type Mark,
+  type NightSetup,
   type Phase,
   type Player,
   type Role,
@@ -43,6 +47,8 @@ const ROLE_LABEL: Record<Role, string> = {
   assassino: '🔪 assassino',
   detetive: '🔍 detetive',
   samu: '🚑 samu',
+  espelho: '🪞 espelho',
+  justiceiro: '🔫 justiceiro',
   cidadao: '🏠 cidadão',
 }
 
@@ -71,15 +77,28 @@ function logDraw(room: Room, players: Record<string, Player>, roles: Record<stri
   if (streaks.length) log(room, `rodada ${room.round} · sequências: ${streaks.join('; ')}`)
 }
 
-function logTurn(room: Room, turn: Turn, day: boolean) {
+function logNight(room: Room, turn: Turn, result: NightResult) {
   const n = room.turns?.length ?? 0
-  if (day) log(room, `rodada ${room.round} · dia ${n}: votação eliminou ${list(turn.voted ?? [])}`)
-  else {
-    log(
-      room,
-      `rodada ${room.round} · noite ${n}: atacados ${list(turn.attacked)} · salvos ${list(turn.saved)} · morreram ${list(killedIn(turn))}`,
-    )
-  }
+  const parts = [`atacados ${list(turn.attacked)}`, `salvos ${list(turn.saved)}`]
+  for (const r of result.reflected) parts.push(`🪞 ${r.mirror.name} devolveu o ataque para ${r.assassin.name}`)
+  for (const s of turn.shots ?? []) parts.push(`🔫 ${s.by.name} atirou em ${s.target.name}`)
+  if (result.guilty.length) parts.push(`morreu de culpa ${list(result.guilty)}`)
+  parts.push(`morreram ${list(result.killed)}`)
+  log(room, `rodada ${room.round} · noite ${n}: ${parts.join(' · ')}`)
+}
+
+function logDay(room: Room, turn: Turn) {
+  log(room, `rodada ${room.round} · dia ${room.turns?.length ?? 0}: votação eliminou ${list(turn.voted ?? [])}`)
+}
+
+function logNightStart(room: Room, night: NightSetup, number: number, alive: NightPlayer[]) {
+  const shooters = alive.filter((p) => night.justiceiros.includes(p.pid))
+  if (shooters.length) log(room, `rodada ${room.round} · noite ${number}: 🔫 tem vez ${list(shooters)}`)
+}
+
+function logWinner(room: Room, alive: NightPlayer[]) {
+  const side = winner(alive, usedMirrors(room.turns ?? []))
+  if (side) log(room, `rodada ${room.round}: ${side === 'cidade' ? '🏆 a cidade venceu' : '🔪 os assassinos venceram'}`)
 }
 
 async function loadRoom(code: string): Promise<Room> {
@@ -102,7 +121,8 @@ async function getPlayers(room: Room) {
 /**
  * What a given client is allowed to see: the narrator sees everyone's role and
  * how many of each role were drawn, each player sees only their own.
- * Deaths are public; who was attacked/saved at night only the narrator sees.
+ * Deaths are public; what happened at night (attacks, SAMU, Espelho, Justiceiro)
+ * and the setup of the current night only the narrator sees.
  */
 async function roomView(room: Room, clientId: string) {
   const store = getStore()
@@ -116,18 +136,20 @@ async function roomView(room: Room, clientId: string) {
   const me = players[clientId]
   const turns = playing ? (room.turns ?? []) : []
   const dead = deadPids(turns)
+  const phase = playing ? (room.phase ?? 'night') : null
+  const night = phase === 'night' ? room.nights?.[turns.length] : null
 
   return {
     code: room.code,
     status: room.status,
     round: room.round,
-    phase: playing ? (room.phase ?? 'night') : null,
+    phase,
     turns: turns.map((t) => ({
       killed: killedIn(t),
       voted: t.voted,
-      ...(isHost && { attacked: t.attacked, saved: t.saved }),
+      ...(isHost && { attacked: t.attacked, saved: t.saved, shots: t.shots ?? [], reflected: t.reflected ?? [] }),
     })),
-    ...(isHost && { counts: room.counts }),
+    ...(isHost && { counts: withAllCounts(room.counts), night: night ?? null }),
     hostName: room.hostName,
     isHost,
     players: Object.entries(players)
@@ -275,6 +297,7 @@ app.post('/api/rooms/:code/transfer', async (req, res) => {
     status: 'lobby',
     phase: undefined,
     turns: [],
+    nights: [],
   }
   await store.saveRoom(updated)
   log(room, `narração passou de ${room.hostName} para ${newHost.name}${room.status === 'playing' ? ' (rodada encerrada)' : ''}`)
@@ -293,6 +316,7 @@ app.post('/api/rooms/:code/start', async (req, res) => {
   const roles = drawRoles(players, counts, room.history)
 
   await store.setRoles(room.code, roles)
+  const night = newNight(roles, players)
   const updated: Room = {
     ...room,
     status: 'playing',
@@ -300,10 +324,12 @@ app.post('/api/rooms/:code/start', async (req, res) => {
     counts,
     phase: 'night',
     turns: [],
+    nights: [night],
     history: rememberRoles(room.history, players, roles),
   }
   await store.saveRoom(updated)
   logDraw({ ...updated, history: room.history }, players, roles)
+  logNightStart(updated, night, 1, alivePlayers(players, roles, []))
 
   res.json(await roomView(updated, clientId))
 })
@@ -314,7 +340,7 @@ app.post('/api/rooms/:code/reset', async (req, res) => {
   requireHost(room, clientId)
 
   await getStore().clearRoles(room.code)
-  const updated: Room = { ...room, status: 'lobby', phase: undefined, turns: [] }
+  const updated: Room = { ...room, status: 'lobby', phase: undefined, turns: [], nights: [] }
   await getStore().saveRoom(updated)
   log(room, `rodada ${room.round} encerrada, de volta ao lobby`)
 
@@ -326,36 +352,78 @@ function requirePhase(room: Room, phase: Phase) {
   if ((room.phase ?? 'night') !== phase) throw new HttpError(409, 'A rodada já mudou, atualize a tela')
 }
 
-/** Turns a list of pids into alive players that are part of the current round. */
-async function pickAlive(room: Room, value: unknown, { exclude }: { exclude?: Role } = {}): Promise<Mark[]> {
-  if (!Array.isArray(value) || value.length > MAX_PLAYERS) throw new HttpError(400, 'Seleção inválida')
-  const [players, roles] = await Promise.all([getPlayers(room), getStore().getRoles(room.code)])
-  const dead = deadPids(room.turns ?? [])
-  const inRound = new Map(
-    Object.entries(players)
-      .filter(([id]) => roles[id] && roles[id] !== exclude)
-      .map(([, p]) => [p.pid, p]),
+const mark = (p: Mark): Mark => ({ pid: p.pid, name: p.name })
+
+/** Players with a role in the current round who haven't died yet. */
+function alivePlayers(players: Record<string, Player>, roles: Record<string, Role>, turns: Turn[]): NightPlayer[] {
+  const dead = deadPids(turns)
+  return Object.entries(players).flatMap(([id, p]) =>
+    roles[id] && !dead.has(p.pid) ? [{ pid: p.pid, name: p.name, role: roles[id] }] : [],
   )
+}
+
+async function loadRound(room: Room) {
+  const [players, roles] = await Promise.all([getPlayers(room), getStore().getRoles(room.code)])
+  return { players, roles, alive: alivePlayers(players, roles, room.turns ?? []) }
+}
+
+/** Turns a list of pids into alive players that are part of the current round. */
+function pickAlive(alive: NightPlayer[], value: unknown, { exclude }: { exclude?: Role } = {}): Mark[] {
+  if (!Array.isArray(value) || value.length > MAX_PLAYERS) throw new HttpError(400, 'Seleção inválida')
+  const byPid = new Map(alive.filter((p) => p.role !== exclude).map((p) => [p.pid, p]))
   return [...new Set(value)].map((pid) => {
-    const p = typeof pid === 'string' ? inRound.get(pid) : undefined
-    if (!p || dead.has(p.pid)) throw new HttpError(400, 'Escolha apenas jogadores vivos desta rodada')
-    return { pid: p.pid, name: p.name }
+    const p = typeof pid === 'string' ? byPid.get(pid) : undefined
+    if (!p) throw new HttpError(400, 'Escolha apenas jogadores vivos desta rodada')
+    return mark(p)
   })
 }
 
-/** Ends the night: whoever was attacked and not saved dies. */
+/** At most one shot per Justiceiro who got to act this night, at someone alive other than themselves. */
+function pickShots(alive: NightPlayer[], value: unknown, night: NightSetup | null | undefined): Shot[] {
+  if (value === undefined) return []
+  if (!Array.isArray(value) || value.length > MAX_PLAYERS) throw new HttpError(400, 'Seleção inválida')
+  const byPid = new Map(alive.map((p) => [p.pid, p]))
+  const shooters = new Set<string>()
+  return value.map((shot) => {
+    const by = byPid.get(shot?.by)
+    const target = byPid.get(shot?.target)
+    if (!by || by.role !== 'justiceiro' || !night?.justiceiros.includes(by.pid) || shooters.has(by.pid)) {
+      throw new HttpError(400, 'O Justiceiro não tem vez nesta noite')
+    }
+    if (!target || target.pid === by.pid) throw new HttpError(400, 'Escolha um alvo vivo para o Justiceiro')
+    shooters.add(by.pid)
+    return { by: mark(by), target: mark(target) }
+  })
+}
+
+/** Ends the night: see resolveNight for who dies (attacks, Espelho, SAMU, Justiceiro). */
 app.post('/api/rooms/:code/dawn', async (req, res) => {
   const clientId = getClientId(req)
   const room = await loadRoom(req.params.code)
   requireHost(room, clientId)
   requirePhase(room, 'night')
 
-  const attacked = await pickAlive(room, req.body?.attacked, { exclude: 'assassino' })
-  const saved = await pickAlive(room, req.body?.saved)
-  const turn: Turn = { attacked, saved, voted: null }
-  const updated: Room = { ...room, phase: 'day', turns: [...(room.turns ?? []), turn] }
+  const turns = room.turns ?? []
+  const night = room.nights?.[turns.length]
+  const { alive } = await loadRound(room)
+  const attacked = pickAlive(alive, req.body?.attacked, { exclude: 'assassino' })
+  const saved = pickAlive(alive, req.body?.saved)
+  const shots = pickShots(alive, req.body?.shots, night)
+  const result = resolveNight({
+    alive,
+    attacked: attacked.map((m) => m.pid),
+    saved: saved.map((m) => m.pid),
+    shots: shots.map((s) => ({ by: s.by.pid, target: s.target.pid })),
+    usedMirrors: usedMirrors(turns),
+    seed: night?.seed ?? 0,
+  })
+
+  const turn: Turn = { attacked, saved, shots, reflected: result.reflected, killed: result.killed, voted: null }
+  const updated: Room = { ...room, phase: 'day', turns: [...turns, turn] }
   await getStore().saveRoom(updated)
-  logTurn(updated, turn, false)
+  logNight(updated, turn, result)
+  const killed = new Set(result.killed.map((m) => m.pid))
+  logWinner(updated, alive.filter((p) => !killed.has(p.pid)))
 
   res.json(await roomView(updated, clientId))
 })
@@ -367,12 +435,23 @@ app.post('/api/rooms/:code/dusk', async (req, res) => {
   requireHost(room, clientId)
   requirePhase(room, 'day')
 
-  const voted = await pickAlive(room, req.body?.voted)
+  const { players, roles, alive } = await loadRound(room)
+  const voted = pickAlive(alive, req.body?.voted)
   const turns = [...(room.turns ?? [])]
   turns[turns.length - 1] = { ...turns[turns.length - 1], voted }
-  const updated: Room = { ...room, phase: 'night', turns }
+
+  // Night N+1 is drawn once: undoing this dusk and doing it again keeps the same night.
+  const nights = [...(room.nights ?? [])]
+  const fresh = !nights[turns.length]
+  if (fresh) nights[turns.length] = newNight(roles, players)
+  const updated: Room = { ...room, phase: 'night', turns, nights }
   await getStore().saveRoom(updated)
-  logTurn(updated, turns[turns.length - 1], true)
+
+  logDay(updated, turns[turns.length - 1])
+  const out = new Set(voted.map((m) => m.pid))
+  const stillAlive = alive.filter((p) => !out.has(p.pid))
+  logWinner(updated, stillAlive)
+  if (fresh) logNightStart(updated, nights[turns.length], turns.length + 1, stillAlive)
 
   res.json(await roomView(updated, clientId))
 })

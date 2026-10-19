@@ -1,27 +1,37 @@
 import { randomBytes, randomInt } from 'node:crypto'
+import type { Mark, Reflection, Role, Shot } from '../shared/night.js'
 
-export type Role = 'assassino' | 'detetive' | 'samu' | 'cidadao'
+export type { Mark, Role } from '../shared/night.js'
 
 export interface Counts {
   assassinos: number
   detetives: number
   samu: number
+  espelhos: number
+  justiceiros: number
 }
 
 export type Phase = 'night' | 'day'
-
-/** A player as recorded in the round log (public id + name at the time). */
-export interface Mark {
-  pid: string
-  name: string
-}
 
 /** Night N (who was attacked/saved) and the day that follows it (who the town voted out). */
 export interface Turn {
   attacked: Mark[]
   saved: Mark[]
+  /** Optional so turns saved before the Espelho/Justiceiro existed still load. */
+  shots?: Shot[]
+  reflected?: Reflection[]
+  /** Who died that night, as resolved at dawn. */
+  killed?: Mark[]
   /** null while the day is still going on. */
   voted: Mark[] | null
+}
+
+/** Drawn when a night starts, so the narrator's preview and the dawn agree. */
+export interface NightSetup {
+  /** Picks which assassin an Espelho sends the attack back to. */
+  seed: number
+  /** pids of the Justiceiros who get to act this night. */
+  justiceiros: string[]
 }
 
 export interface Room {
@@ -40,6 +50,8 @@ export interface Room {
   turns?: Turn[]
   /** Last roles of each player (by pid), used to make the draw fairer. Never sent to clients. */
   history?: History
+  /** Index N-1 is night N of the current round; kept through undo so redoing a night doesn't re-roll it. */
+  nights?: NightSetup[]
 }
 
 /** pid → that player's roles in the last rounds they played, oldest first. */
@@ -62,7 +74,14 @@ export class HttpError extends Error {
 }
 
 export const MAX_PLAYERS = 60
-export const DEFAULT_COUNTS: Counts = { assassinos: 1, detetives: 1, samu: 1 }
+export const DEFAULT_COUNTS: Counts = { assassinos: 1, detetives: 1, samu: 1, espelhos: 0, justiceiros: 0 }
+/** Chance of each Justiceiro getting to act on a given night. */
+export const JUSTICEIRO_CHANCE = 1 / 3
+
+/** Rooms saved before a role existed have no count for it. */
+export function withAllCounts(counts: Partial<Counts>): Counts {
+  return { ...DEFAULT_COUNTS, ...counts }
+}
 
 const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789'
 
@@ -106,7 +125,18 @@ export function parseCounts(value: unknown): Counts {
     if (!Number.isInteger(n) || n < 0 || n > MAX_PLAYERS) throw new HttpError(400, 'Quantidade inválida')
     return n
   }
-  return { assassinos: count(obj.assassinos), detetives: count(obj.detetives), samu: count(obj.samu) }
+  return {
+    assassinos: count(obj.assassinos),
+    detetives: count(obj.detetives),
+    samu: count(obj.samu),
+    // Older clients don't send these.
+    espelhos: count(obj.espelhos ?? 0),
+    justiceiros: count(obj.justiceiros ?? 0),
+  }
+}
+
+export function specialCount(counts: Counts) {
+  return counts.assassinos + counts.detetives + counts.samu + counts.espelhos + counts.justiceiros
 }
 
 /** How many past rounds of each player the draw remembers. */
@@ -143,7 +173,7 @@ export function drawRoles(
   history: History = {},
 ): Record<string, Role> {
   const ids = Object.keys(players)
-  const special = counts.assassinos + counts.detetives + counts.samu
+  const special = specialCount(counts)
   if (ids.length === 0) throw new HttpError(400, 'Ninguém entrou na sala ainda')
   if (special > ids.length) {
     throw new HttpError(400, `São ${special} funções especiais para apenas ${ids.length} jogador(es)`)
@@ -153,6 +183,8 @@ export function drawRoles(
     ...Array<Role>(counts.assassinos).fill('assassino'),
     ...Array<Role>(counts.detetives).fill('detetive'),
     ...Array<Role>(counts.samu).fill('samu'),
+    ...Array<Role>(counts.espelhos).fill('espelho'),
+    ...Array<Role>(counts.justiceiros).fill('justiceiro'),
   ])
   const free = shuffle(ids)
   const roles: Record<string, Role> = {}
@@ -181,8 +213,17 @@ export function rememberRoles(history: History = {}, players: Record<string, Pla
   return next
 }
 
-/** Attacked and not saved by the SAMU. */
+/** Each Justiceiro in the round (alive or not, since undo can bring them back) rolls for this night. */
+export function newNight(roles: Record<string, Role>, players: Record<string, Player>): NightSetup {
+  const justiceiros = Object.entries(roles)
+    .filter(([id, role]) => role === 'justiceiro' && players[id] && randomInt(1_000_000) < JUSTICEIRO_CHANCE * 1_000_000)
+    .map(([id]) => players[id].pid)
+  return { seed: randomInt(1_000_000), justiceiros }
+}
+
 export function killedIn(turn: Turn): Mark[] {
+  if (turn.killed) return turn.killed
+  // Turns saved before the night was resolved at dawn: attacked and not saved by the SAMU.
   const saved = new Set(turn.saved.map((m) => m.pid))
   return turn.attacked.filter((m) => !saved.has(m.pid))
 }
