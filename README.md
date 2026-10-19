@@ -11,7 +11,7 @@
 1. Quem abre o site recebe uma **sessão única naquele navegador**: um id aleatório salvo no `localStorage`, sem cadastro.
 2. Essa pessoa cria a sala e compartilha o link (`/sala/CODIGO`) copiando, pelo menu de compartilhar do celular ou mostrando o QR code.
 3. Os convidados abrem o link, escolhem um nome e entram.
-4. O narrador (quem criou a sala, que não entra no sorteio) escolhe quantos assassinos, detetives e SAMU haverá e clica em **Sortear**. O sorteio acontece no servidor com `crypto.randomInt` (Fisher–Yates).
+4. O narrador (quem criou a sala, que não entra no sorteio) escolhe quantos assassinos, detetives e SAMU haverá e clica em **Sortear**. O sorteio acontece no servidor com `crypto.randomInt` e lembra as **2 últimas rodadas** de cada jogador: quem tirou a mesma função nas duas tem **10× menos chance** de tirá-la pela 3ª vez seguida (um cidadão nessa situação tem mais chance de ganhar uma função especial). No longo prazo, cada um continua com a mesma chance de cada função.
 5. O servidor devolve a cada jogador **somente a função dele**. Só o narrador recebe a lista com a função de todo mundo, que aparece na tela dele ao lado de cada nome.
 6. **Sortear nova rodada** sorteia as funções de novo com os mesmos jogadores.
 7. Durante a rodada, o narrador conduz as **noites e os dias** pelo celular:
@@ -83,3 +83,7 @@ Todas as rotas exigem o header `x-client-id`, que identifica a sessão do navega
 | POST   | `/api/rooms/:code/transfer` | narrador     | passa a narração a um jogador (`{ pid }`)   |
 
 As salas expiram depois de 12 horas sem alterações. Os clientes consultam o estado a cada 2,5 s, o que dá folga de sobra no plano gratuito do Upstash para uma noite de jogo.
+
+### Logs
+
+O servidor escreve uma linha por evento do jogo, começando com `[sala CODIGO]`: sala criada, entradas e saídas, cada sorteio com a função de todos, sequências de função repetida, noites, votações, desfazer e troca de narrador. Os erros de regra (ex.: `409 A rodada já mudou`) também aparecem. Na Vercel, abra o projeto → **Logs** e busque pelo código da sala. No plano gratuito os logs ficam disponíveis por pouco tempo (cerca de 1 hora), então confira durante ou logo depois do jogo. Localmente, eles aparecem no terminal do `npm run dev`.

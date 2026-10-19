@@ -11,10 +11,14 @@ import {
   parseName,
   randomCode,
   randomId,
+  rememberRoles,
+  streakRole,
   type Mark,
   type Phase,
+  type Player,
   type Role,
   type Room,
+  type Turn,
 } from './game.js'
 import { getStore } from './store.js'
 
@@ -33,6 +37,49 @@ function getClientId(req: Request): string {
     throw new HttpError(401, 'Sessão inválida, recarregue a página')
   }
   return id
+}
+
+const ROLE_LABEL: Record<Role, string> = {
+  assassino: '🔪 assassino',
+  detetive: '🔍 detetive',
+  samu: '🚑 samu',
+  cidadao: '🏠 cidadão',
+}
+
+const list = (marks: Mark[]) => (marks.length ? marks.map((m) => m.name).join(', ') : 'ninguém')
+
+/** One line per game event; search the room code in the Vercel project's Logs tab. */
+function log(room: Room, message: string) {
+  console.log(`[sala ${room.code}] ${message}`)
+}
+
+function logDraw(room: Room, players: Record<string, Player>, roles: Record<string, Role>) {
+  const byRole = (Object.keys(ROLE_LABEL) as Role[])
+    .map((role) => {
+      const who = Object.entries(roles).filter(([, r]) => r === role).map(([id]) => players[id].name)
+      return who.length ? `${ROLE_LABEL[role]}: ${who.join(', ')}` : null
+    })
+    .filter(Boolean)
+  log(room, `rodada ${room.round} sorteada por ${room.hostName} · ${byRole.join(' | ')}`)
+
+  // Who had the same role in their last two rounds, and whether they got it a third time anyway.
+  const streaks = Object.entries(roles).flatMap(([id, role]) => {
+    const streak = streakRole(room.history?.[players[id].pid])
+    if (!streak) return []
+    return [`${players[id].name} (${ROLE_LABEL[streak]} 2x → ${streak === role ? 'repetiu 3ª vez' : ROLE_LABEL[role]})`]
+  })
+  if (streaks.length) log(room, `rodada ${room.round} · sequências: ${streaks.join('; ')}`)
+}
+
+function logTurn(room: Room, turn: Turn, day: boolean) {
+  const n = room.turns?.length ?? 0
+  if (day) log(room, `rodada ${room.round} · dia ${n}: votação eliminou ${list(turn.voted ?? [])}`)
+  else {
+    log(
+      room,
+      `rodada ${room.round} · noite ${n}: atacados ${list(turn.attacked)} · salvos ${list(turn.saved)} · morreram ${list(killedIn(turn))}`,
+    )
+  }
 }
 
 async function loadRoom(code: string): Promise<Room> {
@@ -115,6 +162,8 @@ async function addPlayer(room: Room, clientId: string, name: string) {
     name,
     joinedAt: existing?.joinedAt ?? Date.now(),
   })
+  if (!existing) log(room, `${name} entrou`)
+  else if (existing.name !== name) log(room, `${existing.name} agora se chama ${name}`)
 }
 
 app.post('/api/rooms', async (req, res) => {
@@ -139,6 +188,7 @@ app.post('/api/rooms', async (req, res) => {
     counts: DEFAULT_COUNTS,
   }
   await store.saveRoom(room)
+  log(room, `sala criada por ${name}`)
 
   res.status(201).json(await roomView(room, clientId))
 })
@@ -159,7 +209,9 @@ app.post('/api/rooms/:code/join', async (req, res) => {
 app.post('/api/rooms/:code/leave', async (req, res) => {
   const clientId = getClientId(req)
   const room = await loadRoom(req.params.code)
+  const player = (await getPlayers(room))[clientId]
   await getStore().removePlayer(room.code, clientId)
+  if (player) log(room, `${player.name} saiu`)
   res.json({ ok: true })
 })
 
@@ -170,7 +222,10 @@ app.post('/api/rooms/:code/kick', async (req, res) => {
 
   const players = await getPlayers(room)
   const target = Object.entries(players).find(([, p]) => p.pid === req.body?.pid)
-  if (target) await getStore().removePlayer(room.code, target[0])
+  if (target) {
+    await getStore().removePlayer(room.code, target[0])
+    log(room, `${room.hostName} removeu ${target[1].name}`)
+  }
 
   res.json(await roomView(room, clientId))
 })
@@ -215,6 +270,7 @@ app.post('/api/rooms/:code/transfer', async (req, res) => {
     turns: [],
   }
   await store.saveRoom(updated)
+  log(room, `narração passou de ${room.hostName} para ${newHost.name}${room.status === 'playing' ? ' (rodada encerrada)' : ''}`)
 
   res.json(await roomView(updated, clientId))
 })
@@ -227,11 +283,20 @@ app.post('/api/rooms/:code/start', async (req, res) => {
   const counts = parseCounts(req.body?.counts)
   const store = getStore()
   const players = await getPlayers(room)
-  const roles = drawRoles(Object.keys(players), counts)
+  const roles = drawRoles(players, counts, room.history)
 
   await store.setRoles(room.code, roles)
-  const updated: Room = { ...room, status: 'playing', round: room.round + 1, counts, phase: 'night', turns: [] }
+  const updated: Room = {
+    ...room,
+    status: 'playing',
+    round: room.round + 1,
+    counts,
+    phase: 'night',
+    turns: [],
+    history: rememberRoles(room.history, players, roles),
+  }
   await store.saveRoom(updated)
+  logDraw({ ...updated, history: room.history }, players, roles)
 
   res.json(await roomView(updated, clientId))
 })
@@ -244,6 +309,7 @@ app.post('/api/rooms/:code/reset', async (req, res) => {
   await getStore().clearRoles(room.code)
   const updated: Room = { ...room, status: 'lobby', phase: undefined, turns: [] }
   await getStore().saveRoom(updated)
+  log(room, `rodada ${room.round} encerrada, de volta ao lobby`)
 
   res.json(await roomView(updated, clientId))
 })
@@ -279,8 +345,10 @@ app.post('/api/rooms/:code/dawn', async (req, res) => {
 
   const attacked = await pickAlive(room, req.body?.attacked, { exclude: 'assassino' })
   const saved = await pickAlive(room, req.body?.saved)
-  const updated: Room = { ...room, phase: 'day', turns: [...(room.turns ?? []), { attacked, saved, voted: null }] }
+  const turn: Turn = { attacked, saved, voted: null }
+  const updated: Room = { ...room, phase: 'day', turns: [...(room.turns ?? []), turn] }
   await getStore().saveRoom(updated)
+  logTurn(updated, turn, false)
 
   res.json(await roomView(updated, clientId))
 })
@@ -297,6 +365,7 @@ app.post('/api/rooms/:code/dusk', async (req, res) => {
   turns[turns.length - 1] = { ...turns[turns.length - 1], voted }
   const updated: Room = { ...room, phase: 'night', turns }
   await getStore().saveRoom(updated)
+  logTurn(updated, turns[turns.length - 1], true)
 
   res.json(await roomView(updated, clientId))
 })
@@ -320,6 +389,7 @@ app.post('/api/rooms/:code/undo', async (req, res) => {
   }
   const updated: Room = { ...room, phase, turns }
   await getStore().saveRoom(updated)
+  log(room, `${room.hostName} desfez ${phase === 'night' ? 'o amanhecer' : 'a votação'}`)
 
   res.json(await roomView(updated, clientId))
 })
@@ -328,8 +398,10 @@ app.use('/api', (_req, res) => {
   res.status(404).json({ error: 'Rota não encontrada' })
 })
 
-app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
+app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof HttpError) {
+    // 401/404 happen all the time (expired rooms, old links); the rest help explain a complaint.
+    if (err.status !== 401 && err.status !== 404) console.warn(`${req.method} ${req.path} → ${err.status} ${err.message}`)
     res.status(err.status).json({ error: err.message })
     return
   }

@@ -38,7 +38,12 @@ export interface Room {
   /** Only while playing; optional so rooms saved before this existed still load. */
   phase?: Phase
   turns?: Turn[]
+  /** Last roles of each player (by pid), used to make the draw fairer. Never sent to clients. */
+  history?: History
 }
+
+/** pid → that player's roles in the last rounds they played, oldest first. */
+export type History = Record<string, Role[]>
 
 export interface Player {
   /** Public id, safe to show to other players (the clientId is a secret). */
@@ -104,22 +109,76 @@ export function parseCounts(value: unknown): Counts {
   return { assassinos: count(obj.assassinos), detetives: count(obj.detetives), samu: count(obj.samu) }
 }
 
-export function drawRoles(clientIds: string[], counts: Counts): Record<string, Role> {
+/** How many past rounds of each player the draw remembers. */
+export const HISTORY_ROUNDS = 2
+/** Getting the same role for the third time in a row is this many times less likely. */
+const REPEAT_PENALTY = 10
+
+/** The role a player has had in each of their last HISTORY_ROUNDS rounds, if it was always the same. */
+export function streakRole(past: Role[] | undefined): Role | null {
+  if (!past || past.length < HISTORY_ROUNDS) return null
+  const recent = past.slice(-HISTORY_ROUNDS)
+  return recent.every((r) => r === recent[0]) ? recent[0] : null
+}
+
+/** Picks an index with probability proportional to its (integer) weight. */
+function weightedIndex(weights: number[]): number {
+  let r = randomInt(weights.reduce((a, b) => a + b, 0))
+  for (let i = 0; i < weights.length; i++) {
+    r -= weights[i]
+    if (r < 0) return i
+  }
+  return weights.length - 1
+}
+
+/**
+ * Hands out the special roles one at a time (in random order) and everyone left
+ * becomes a citizen. Without history every player is equally likely to get each
+ * role; whoever had the same role in their last two rounds is REPEAT_PENALTY times
+ * less likely to get it a third time (for citizens: more likely to get a special one).
+ */
+export function drawRoles(
+  players: Record<string, Player>,
+  counts: Counts,
+  history: History = {},
+): Record<string, Role> {
+  const ids = Object.keys(players)
   const special = counts.assassinos + counts.detetives + counts.samu
-  if (clientIds.length === 0) throw new HttpError(400, 'Ninguém entrou na sala ainda')
-  if (special > clientIds.length) {
-    throw new HttpError(400, `São ${special} funções especiais para apenas ${clientIds.length} jogador(es)`)
+  if (ids.length === 0) throw new HttpError(400, 'Ninguém entrou na sala ainda')
+  if (special > ids.length) {
+    throw new HttpError(400, `São ${special} funções especiais para apenas ${ids.length} jogador(es)`)
   }
 
-  const pool: Role[] = [
+  const slots = shuffle<Role>([
     ...Array<Role>(counts.assassinos).fill('assassino'),
     ...Array<Role>(counts.detetives).fill('detetive'),
     ...Array<Role>(counts.samu).fill('samu'),
-  ]
-  while (pool.length < clientIds.length) pool.push('cidadao')
+  ])
+  const free = shuffle(ids)
+  const roles: Record<string, Role> = {}
 
-  const roles = shuffle(pool)
-  return Object.fromEntries(clientIds.map((id, i) => [id, roles[i]]))
+  for (const role of slots) {
+    const weights = free.map((id) => {
+      const streak = streakRole(history[players[id].pid])
+      if (streak === role) return 1
+      if (streak === 'cidadao') return REPEAT_PENALTY * REPEAT_PENALTY
+      return REPEAT_PENALTY
+    })
+    const [id] = free.splice(weightedIndex(weights), 1)
+    roles[id] = role
+  }
+  for (const id of free) roles[id] = 'cidadao'
+  return roles
+}
+
+/** Adds this round's roles to the history, keeping the last HISTORY_ROUNDS of each player. */
+export function rememberRoles(history: History = {}, players: Record<string, Player>, roles: Record<string, Role>) {
+  const next = { ...history }
+  for (const [id, role] of Object.entries(roles)) {
+    const pid = players[id].pid
+    next[pid] = [...(next[pid] ?? []), role].slice(-HISTORY_ROUNDS)
+  }
+  return next
 }
 
 /** Attacked and not saved by the SAMU. */
