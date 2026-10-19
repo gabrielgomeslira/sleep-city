@@ -241,11 +241,22 @@ function Outcome({ children }: { children: ReactNode }) {
   )
 }
 
+/**
+ * Os assassinos só ganharam quando a cidade não tem mais como virar o jogo: são maioria
+ * (decidem qualquer votação) ou empatam sem SAMU vivo (a próxima noite desempata).
+ * Empatados com um SAMU vivo, o jogo segue: ele pode salvar o alvo (ou a si mesmo) toda noite.
+ */
+function assassinsWon(alive: PlayerView[]) {
+  const assassins = alive.filter((p) => p.role === 'assassino').length
+  const others = alive.length - assassins
+  const samuAlive = alive.some((p) => p.role === 'samu')
+  return assassins > others || (assassins === others && !samuAlive)
+}
+
 /** Dica só para o narrador: avisa quando um dos lados já ganhou. */
 function Winner({ room, alive }: { room: RoomView; alive: PlayerView[] }) {
   if (room.turns.length === 0 || !room.counts?.assassinos) return null
   const assassins = alive.filter((p) => p.role === 'assassino').length
-  const others = alive.length - assassins
 
   if (assassins === 0) {
     return (
@@ -254,10 +265,10 @@ function Winner({ room, alive }: { room: RoomView; alive: PlayerView[] }) {
       </div>
     )
   }
-  if (assassins >= others) {
+  if (assassinsWon(alive)) {
     return (
       <div className="animate-pop rounded-2xl bg-destructive px-3 py-2 font-display font-semibold text-white">
-        🔪 Os assassinos venceram! Já são maioria na cidade.
+        🔪 Os assassinos venceram! A cidade não consegue mais pará-los.
       </div>
     )
   }
