@@ -10,6 +10,8 @@ export interface Store {
   getPlayers(code: string): Promise<Record<string, Player>>
   setPlayer(code: string, clientId: string, player: Player): Promise<void>
   removePlayer(code: string, clientId: string): Promise<void>
+  /** Moves a player (and their role, if any) from one session to another. */
+  replacePlayer(code: string, oldId: string, newId: string, player: Player): Promise<void>
   getRole(code: string, clientId: string): Promise<Role | null>
   getRoles(code: string): Promise<Record<string, Role>>
   setRoles(code: string, roles: Record<string, Role>): Promise<void>
@@ -51,6 +53,17 @@ class RedisStore implements Store {
     const p = this.redis.pipeline()
     p.hdel(keys.players(code), clientId)
     p.hdel(keys.roles(code), clientId)
+    await p.exec()
+  }
+
+  async replacePlayer(code: string, oldId: string, newId: string, player: Player) {
+    const role = await this.getRole(code, oldId)
+    const p = this.redis.pipeline()
+    p.hdel(keys.players(code), oldId)
+    p.hset(keys.players(code), { [newId]: JSON.stringify(player) })
+    p.expire(keys.players(code), TTL_SECONDS)
+    p.hdel(keys.roles(code), oldId, newId)
+    if (role) p.hset(keys.roles(code), { [newId]: role })
     await p.exec()
   }
 
@@ -102,6 +115,16 @@ class MemoryStore implements Store {
   async removePlayer(code: string, clientId: string) {
     this.hash(this.players, code).delete(clientId)
     this.hash(this.roles, code).delete(clientId)
+  }
+  async replacePlayer(code: string, oldId: string, newId: string, player: Player) {
+    const players = this.hash(this.players, code)
+    const roles = this.hash(this.roles, code)
+    const role = roles.get(oldId)
+    players.delete(oldId)
+    players.set(newId, { ...player })
+    roles.delete(oldId)
+    roles.delete(newId)
+    if (role) roles.set(newId, role)
   }
   async getRole(code: string, clientId: string) {
     return this.hash(this.roles, code).get(clientId) ?? null

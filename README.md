@@ -10,7 +10,7 @@
 
 1. Quem abre o site recebe uma **sessão única naquele navegador**: um id aleatório salvo no `localStorage`, sem cadastro.
 2. Essa pessoa cria a sala e compartilha o link (`/sala/CODIGO`) copiando, pelo menu de compartilhar do celular ou mostrando o QR code.
-3. Os convidados abrem o link, escolhem um nome e entram.
+3. Os convidados abrem o link, escolhem um nome e entram. Se alguém entrar com o **nome de quem já está na sala** (por exemplo, pelo celular de outra pessoa depois que a bateria acabou), a nova sessão **assume o lugar** dela, com a mesma função, vivo ou morto, e a sessão antiga sai da sala. O nome do narrador continua bloqueado.
 4. O narrador (quem criou a sala, que não entra no sorteio) escolhe quantos assassinos, detetives e SAMU haverá e clica em **Sortear**. O sorteio acontece no servidor com `crypto.randomInt` e lembra as **2 últimas rodadas** de cada jogador: quem tirou a mesma função nas duas tem **10× menos chance** de tirá-la pela 3ª vez seguida (um cidadão nessa situação tem mais chance de ganhar uma função especial). No longo prazo, cada um continua com a mesma chance de cada função.
 5. O servidor devolve a cada jogador **somente a função dele**. Só o narrador recebe a lista com a função de todo mundo, que aparece na tela dele ao lado de cada nome.
 6. **Sortear nova rodada** sorteia as funções de novo com os mesmos jogadores.

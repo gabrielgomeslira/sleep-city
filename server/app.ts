@@ -148,13 +148,20 @@ async function addPlayer(room: Room, clientId: string, name: string) {
   const players = await getPlayers(room)
   const existing = players[clientId]
 
-  // The narrator counts too: they can become a player again when they hand over the role.
-  const taken =
-    room.hostName.toLocaleLowerCase() === name.toLocaleLowerCase() ||
-    Object.entries(players).some(
-      ([id, p]) => id !== clientId && p.name.toLocaleLowerCase() === name.toLocaleLowerCase(),
-    )
-  if (taken) throw new HttpError(409, 'Já tem alguém com esse nome na sala')
+  const same = (a: string) => a.toLocaleLowerCase() === name.toLocaleLowerCase()
+  // The narrator's name stays taken: they become a player again when they hand over the role.
+  if (same(room.hostName)) throw new HttpError(409, 'Esse é o nome do narrador desta sala')
+
+  // Someone already has this name: most likely the same person on another phone or browser,
+  // so this session takes their place (same player, same role, alive or dead) and the old one is dropped.
+  const sameName = Object.entries(players).find(([id, p]) => id !== clientId && same(p.name))
+  if (sameName) {
+    const [oldId, old] = sameName
+    await getStore().replacePlayer(room.code, oldId, clientId, { ...old, name })
+    log(room, `${name} entrou de novo por outra sessão; a anterior foi removida`)
+    return
+  }
+
   if (!existing && Object.keys(players).length >= MAX_PLAYERS) throw new HttpError(409, 'A sala está cheia')
 
   await getStore().setPlayer(room.code, clientId, {
