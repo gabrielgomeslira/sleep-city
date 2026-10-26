@@ -61,6 +61,28 @@ export interface Room {
 /** pid → that player's roles in the last rounds they played, oldest first. */
 export type History = Record<string, Role[]>
 
+/** A message in the chat of the dead players of a round. */
+export interface ChatMessage {
+  id: string
+  /** Author's public id; empty for the narrator. */
+  pid: string
+  name: string
+  host?: boolean
+  text: string
+  at: number
+}
+
+export const CHAT_MAX_LENGTH = 300
+/** Only the last messages of each round are kept. */
+export const CHAT_MAX_MESSAGES = 200
+
+export function parseChatText(value: unknown): string {
+  const text = typeof value === 'string' ? value.replace(/\s+/g, ' ').trim() : ''
+  if (!text) throw new HttpError(400, 'Escreva uma mensagem')
+  if (text.length > CHAT_MAX_LENGTH) throw new HttpError(400, `Mensagem muito longa (máx. ${CHAT_MAX_LENGTH} caracteres)`)
+  return text
+}
+
 export interface Player {
   /** Public id, safe to show to other players (the clientId is a secret). */
   pid: string

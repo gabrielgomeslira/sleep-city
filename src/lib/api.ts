@@ -41,5 +41,6 @@ export const api = {
     request<RoomView>('POST', `/rooms/${code}/dawn`, { attacked, saved, shots }),
   dusk: (code: string, voted: string[]) => request<RoomView>('POST', `/rooms/${code}/dusk`, { voted }),
   undo: (code: string) => request<RoomView>('POST', `/rooms/${code}/undo`),
+  chat: (code: string, text: string) => request<RoomView>('POST', `/rooms/${code}/chat`, { text }),
   reset: (code: string) => request<RoomView>('POST', `/rooms/${code}/reset`),
 }

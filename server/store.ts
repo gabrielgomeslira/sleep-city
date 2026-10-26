@@ -1,5 +1,5 @@
 import { Redis } from '@upstash/redis'
-import type { Player, Role, Room } from './game.js'
+import { CHAT_MAX_MESSAGES, type ChatMessage, type Player, type Role, type Room } from './game.js'
 
 /** Rooms expire after 12h without changes. */
 const TTL_SECONDS = 60 * 60 * 12
@@ -29,6 +29,9 @@ export interface Store {
   /** Moves a player (and their role, if any) from one session to another. */
   replacePlayer(code: string, oldId: string, newId: string, player: Player): Promise<void>
   getRole(code: string, clientId: string): Promise<Role | null>
+  /** Chat of the dead players of a round, oldest first. */
+  getChat(code: string, round: number): Promise<ChatMessage[]>
+  addChat(code: string, round: number, message: ChatMessage): Promise<void>
   getRoles(code: string): Promise<Record<string, Role>>
   setRoles(code: string, roles: Record<string, Role>): Promise<void>
   clearRoles(code: string): Promise<void>
@@ -40,6 +43,7 @@ const keys = {
   room: (code: string) => `sc:room:${code}`,
   players: (code: string) => `sc:room:${code}:players`,
   roles: (code: string) => `sc:room:${code}:roles`,
+  chat: (code: string, round: number) => `sc:room:${code}:chat:${round}`,
 }
 
 const parse = <T>(value: unknown): T => (typeof value === 'string' ? JSON.parse(value) : value) as T
@@ -122,6 +126,19 @@ class RedisStore implements Store {
     return ((await this.redis.hget<Role>(keys.roles(code), clientId)) ?? null) as Role | null
   }
 
+  async getChat(code: string, round: number) {
+    const list = await this.redis.lrange<unknown>(keys.chat(code, round), 0, -1)
+    return list.map((m) => parse<ChatMessage>(m))
+  }
+
+  async addChat(code: string, round: number, message: ChatMessage) {
+    const p = this.redis.pipeline()
+    p.rpush(keys.chat(code, round), JSON.stringify(message))
+    p.ltrim(keys.chat(code, round), -CHAT_MAX_MESSAGES, -1)
+    p.expire(keys.chat(code, round), TTL_SECONDS)
+    await p.exec()
+  }
+
   async getRoles(code: string) {
     return (await this.redis.hgetall<Record<string, Role>>(keys.roles(code))) ?? {}
   }
@@ -144,6 +161,7 @@ class MemoryStore implements Store {
   private rooms = new Map<string, Room>()
   private players = new Map<string, Map<string, Player>>()
   private roles = new Map<string, Map<string, Role>>()
+  private chats = new Map<string, ChatMessage[]>()
 
   private hash<T>(map: Map<string, Map<string, T>>, code: string) {
     let h = map.get(code)
@@ -205,6 +223,13 @@ class MemoryStore implements Store {
   }
   async getRoles(code: string) {
     return Object.fromEntries(this.hash(this.roles, code))
+  }
+  async getChat(code: string, round: number) {
+    return structuredClone(this.chats.get(`${code}:${round}`) ?? [])
+  }
+  async addChat(code: string, round: number, message: ChatMessage) {
+    const key = `${code}:${round}`
+    this.chats.set(key, [...(this.chats.get(key) ?? []), { ...message }].slice(-CHAT_MAX_MESSAGES))
   }
   async setRoles(code: string, roles: Record<string, Role>) {
     this.roles.set(code, new Map(Object.entries(roles)))

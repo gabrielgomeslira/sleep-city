@@ -33,6 +33,7 @@ O **Sleep City** resolve isso com um link. Cada pessoa joga **no próprio celula
 - 🎲 **Sorteio justo.** Feito no servidor, com memória: quem tirou a mesma função 2 vezes seguidas tem **10× menos chance** de tirar pela 3ª.
 - 🎙️ **Painel do narrador.** Toque em quem foi atacado, salvo ou votado e o app mostra quem morre antes de confirmar.
 - 🌗 **Noites e dias para todos.** Todo celular mostra a fase atual e um aviso em tela cheia a cada amanhecer e anoitecer.
+- 💀 **Chat dos mortos.** Quem morre não precisa ficar só olhando: dá para conversar com os outros mortos, sem que os vivos vejam.
 - 🪞🔫 **Funções extras.** Espelho e Justiceiro deixam as partidas mais imprevisíveis.
 - 🏆 **Fim de jogo automático.** O narrador vê na hora quando a cidade ou os assassinos vencem.
 - 🧹 **Sem bagunça.** As salas recentes aparecem na tela inicial, e as que ficam paradas por 2 horas são limpas sozinhas.
@@ -68,7 +69,15 @@ O narrador escolhe quantas funções de cada tipo e toca em **Sortear**. Quem n�
   <img src="docs/screenshots/08-narrador-dia.png" width="230" alt="Narrador marcando a votação do dia" />
 </p>
 
-### 4. Veja quem venceu
+### 4. Converse com os outros mortos
+
+Quem morre ganha acesso ao **chat dos mortos** da rodada. Os mortos podem comentar o jogo à vontade, e o narrador lê e pode responder. Os vivos não veem nem recebem nada desse chat. A cada nova rodada, o chat começa vazio.
+
+<p align="center">
+  <img src="docs/screenshots/10-chat-mortos.png" width="230" alt="Chat dos mortos" />
+</p>
+
+### 5. Veja quem venceu
 
 Assim que um lado vence, o painel do narrador avisa. Depois é só tocar em **Sortear nova rodada**, com os mesmos jogadores.
 
@@ -113,6 +122,7 @@ A noite é resolvida nesta ordem:
 - Não há cadastro. Cada navegador recebe uma sessão aleatória salva no próprio aparelho.
 - O servidor nunca envia a função de outra pessoa para um jogador. O que aconteceu à noite (ataques, SAMU, Espelho, Justiceiro) só o narrador vê. Os jogadores veem apenas quem morreu.
 - A função também se esconde ao trocar de aba, bloquear a tela ou começar uma nova rodada.
+- O chat dos mortos só é enviado para quem já morreu na rodada e para o narrador. O servidor recusa mensagens de quem está vivo.
 - O tema é escuro e de pouco brilho, para não chamar atenção em uma sala com pouca luz.
 
 ---
@@ -152,6 +162,8 @@ npm run dev
 
 ### Ciclo de vida das salas
 
+- O chat dos mortos fica em `sc:room:CODIGO:chat:RODADA` (as 200 últimas mensagens de cada rodada) e expira junto com a sala.
+
 - Uma sala **sem nenhuma ação por mais de 2 horas** (sorteio, noite, dia, desfazer, troca de narrador ou jogador entrando, saindo ou sendo removido) é apagada com **soft delete**. Só ficar com o app aberto não conta como ação.
 - Uma sala apagada ganha `deletedAt`, sai da lista de salas recentes e o link passa a mostrar "sala não encontrada". Os dados continuam no Redis até expirarem, 12 horas depois.
 - A limpeza (`cleanupIdleRooms` em `server/app.ts`) roda quando a tela inicial pede a lista de salas e quando alguém tenta abrir uma sala parada.
@@ -170,6 +182,7 @@ Todas as rotas usam o header `x-client-id`, que identifica a sessão do navegado
 | POST | `/api/rooms/:code/start` | narrador | sorteia as funções (`{ counts }`) |
 | POST | `/api/rooms/:code/dawn` | narrador | fecha a noite (`{ attacked, saved }` = pids, `shots` = `[{ by, target }]`) |
 | POST | `/api/rooms/:code/dusk` | narrador | fecha o dia (`{ voted }` = pids) |
+| POST | `/api/rooms/:code/chat` | morto ou narrador | manda uma mensagem no chat dos mortos (`{ text }`, até 300 caracteres) |
 | POST | `/api/rooms/:code/undo` | narrador | desfaz o último amanhecer ou anoitecer |
 | POST | `/api/rooms/:code/reset` | narrador | encerra a rodada e volta ao lobby |
 | POST | `/api/rooms/:code/kick` | narrador | remove um jogador (`{ pid }`) |
@@ -191,7 +204,7 @@ server/store.ts       # Redis (Upstash) ou memória
 server/dev.ts         # servidor local da API
 shared/night.ts       # regras da noite e da vitória (servidor + tela do narrador)
 src/pages/            # Home e Sala
-src/components/       # RoleReveal, HostPanel, TurnPanel, TurnHistory, RecentRooms, PhaseBar, Announcement…
+src/components/       # RoleReveal, HostPanel, TurnPanel, TurnHistory, DeadChat, RecentRooms, PhaseBar, Announcement…
 src/components/ui/    # componentes shadcn/ui
 docs/screenshots/     # imagens deste README
 ```

@@ -56,6 +56,18 @@ export interface RoomView {
   isHost: boolean
   players: PlayerView[]
   me: { pid: string; name: string; role: Role | null; dead: boolean } | null
+  /** Chat dos mortos: só vem para quem já morreu nesta rodada e para o narrador. */
+  chat?: ChatMessage[]
+}
+
+export interface ChatMessage {
+  id: string
+  /** Vazio quando quem escreveu foi o narrador. */
+  pid: string
+  name: string
+  host?: boolean
+  text: string
+  at: number
 }
 
 /** Noite 1 → Dia 1 → Noite 2… O dia N vem depois da noite N. */

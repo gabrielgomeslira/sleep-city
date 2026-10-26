@@ -8,6 +8,7 @@ import {
   drawRoles,
   killedIn,
   newNight,
+  parseChatText,
   parseCode,
   parseCounts,
   parseName,
@@ -161,6 +162,8 @@ async function roomView(room: Room, clientId: string) {
   const dead = deadPids(turns)
   const phase = playing ? (room.phase ?? 'night') : null
   const night = phase === 'night' ? room.nights?.[turns.length] : null
+  // The chat of the dead: only who already died this round, and the narrator, can read it.
+  const chat = playing && (isHost || (me && dead.has(me.pid))) ? await store.getChat(room.code, room.round) : null
 
   return {
     code: room.code,
@@ -185,6 +188,7 @@ async function roomView(room: Room, clientId: string) {
         ...(roles && { role: roles[id] ?? null }),
       })),
     me: me ? { pid: me.pid, name: me.name, role: ownRole ?? null, dead: dead.has(me.pid) } : null,
+    ...(chat && { chat }),
   }
 }
 
@@ -440,6 +444,32 @@ function pickShots(alive: NightPlayer[], value: unknown, night: NightSetup | nul
     return { by: mark(by), target: mark(target) }
   })
 }
+
+/** Sends a message to the chat of the dead: players who died this round, and the narrator. */
+app.post('/api/rooms/:code/chat', async (req, res) => {
+  const clientId = getClientId(req)
+  const room = await loadRoom(req.params.code)
+  if (room.status !== 'playing') throw new HttpError(409, 'O chat dos mortos só existe durante a rodada')
+  const text = parseChatText(req.body?.text)
+
+  const isHost = room.hostId === clientId
+  const me = (await getPlayers(room))[clientId]
+  if (!isHost && !(me && deadPids(room.turns ?? []).has(me.pid))) {
+    throw new HttpError(403, 'Só quem já morreu nesta rodada pode usar este chat')
+  }
+
+  const store = getStore()
+  await store.addChat(room.code, room.round, {
+    id: randomId(),
+    pid: isHost ? '' : me.pid,
+    name: isHost ? room.hostName : me.name,
+    ...(isHost && { host: true }),
+    text,
+    at: Date.now(),
+  })
+  const updated = await store.saveRoom(room)
+  res.json(await roomView(updated, clientId))
+})
 
 /** Ends the night: see resolveNight for who dies (attacks, Espelho, SAMU, Justiceiro). */
 app.post('/api/rooms/:code/dawn', async (req, res) => {
