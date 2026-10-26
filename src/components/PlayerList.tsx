@@ -1,9 +1,10 @@
-import { Mic, Users, X } from 'lucide-react'
+import { Mic, MoreVertical, UserX, Users } from 'lucide-react'
 
 import { Avatar } from '@/components/Avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { ROLE_BADGE, ROLE_INFO, type PlayerView } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -63,27 +64,26 @@ export function PlayerList({ players, canManage, onKick, onMakeNarrator }: Props
                 <div className="ml-auto flex shrink-0 items-center gap-1">
                   {p.role !== undefined && <RoleChip role={p.role} />}
                   {canManage && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary"
-                      onClick={() => onMakeNarrator(p)}
-                      aria-label={`Passar a narração para ${p.name}`}
-                      title="Tornar narrador"
-                    >
-                      <Mic />
-                    </Button>
-                  )}
-                  {canManage && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="size-8 rounded-full text-muted-foreground hover:bg-destructive/10 hover:text-destructive"
-                      onClick={() => onKick(p)}
-                      aria-label={`Remover ${p.name}`}
-                    >
-                      <X />
-                    </Button>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="size-8 rounded-full text-muted-foreground hover:bg-primary/10 hover:text-primary data-[state=open]:bg-primary/10 data-[state=open]:text-primary"
+                          aria-label={`Opções de ${p.name}`}
+                        >
+                          <MoreVertical />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem onSelect={() => onMakeNarrator(p)}>
+                          <Mic /> Passar a narração
+                        </DropdownMenuItem>
+                        <DropdownMenuItem variant="destructive" onSelect={() => onKick(p)}>
+                          <UserX /> Remover da sala
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   )}
                 </div>
               </li>

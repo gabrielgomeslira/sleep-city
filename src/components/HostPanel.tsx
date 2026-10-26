@@ -79,7 +79,7 @@ export function HostPanel({ room, onChange }: Props) {
         <CardDescription>
           {playing
             ? `Rodada ${room.round} em andamento. Sorteie de novo quando o jogo acabar.`
-            : 'Quem não tirar uma função especial vira cidadão. Depois do sorteio, a função de cada um aparece na lista de jogadores. Só você vê. Para passar a narração, toque em 🎙️ ao lado de um jogador.'}
+            : 'Quem não tirar uma função especial vira cidadão. Depois do sorteio, a função de cada um aparece na lista de jogadores. Só você vê.'}
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

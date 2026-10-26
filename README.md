@@ -114,7 +114,7 @@ A noite é resolvida nesta ordem:
 
 - **Desfazer.** Tocou errado? Volte um passo.
 - **Histórico da rodada.** Veja noite a noite quem foi atacado, salvo e votado.
-- **Passar a narração.** Toque em 🎙️ ao lado de um jogador. Ele vira o narrador e você entra no jogo. Como o narrador conhece todas as funções, a rodada atual é encerrada.
+- **Passar a narração.** No menu ⋮ ao lado de um jogador. Ele vira o narrador e você entra no jogo. Como o narrador conhece todas as funções, a rodada atual é encerrada.
 - **Trocou de celular?** Se um jogador entrar de novo com o **mesmo nome**, a nova sessão assume o lugar dele, com a mesma função e vivo ou morto, e a antiga sai da sala.
 
 ## Privacidade
