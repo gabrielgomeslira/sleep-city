@@ -45,7 +45,7 @@ O **Sleep City** resolve isso com um link. Cada pessoa joga **no próprio celula
 Quem cria a sala é o **narrador**: não entra no sorteio e vê a função de todos. Os amigos abrem o link, digitam o nome e pronto.
 
 <p align="center">
-  <img src="docs/screenshots/01-inicio.png" width="230" alt="Tela inicial com salas recentes" />
+  <img src="docs/screenshots/01b-salas-recentes.png" width="230" alt="Tela inicial com salas recentes" />
   <img src="docs/screenshots/02-entrar.png" width="230" alt="Convite para entrar na sala" />
   <img src="docs/screenshots/03-lobby-narrador.png" width="230" alt="Narrador escolhendo as funções" />
 </p>
