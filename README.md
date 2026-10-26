@@ -33,7 +33,7 @@ O **Sleep City** resolve isso com um link. Cada pessoa joga **no próprio celula
 - 🎲 **Sorteio justo.** Feito no servidor, com memória: quem tirou a mesma função 2 vezes seguidas tem **10× menos chance** de tirar pela 3ª.
 - 🎙️ **Painel do narrador.** Toque em quem foi atacado, salvo ou votado e o app mostra quem morre antes de confirmar.
 - 🌗 **Noites e dias para todos.** Todo celular mostra a fase atual e um aviso em tela cheia a cada amanhecer e anoitecer.
-- 💀 **Chat dos mortos.** Quem morre não precisa ficar só olhando: dá para conversar com os outros mortos, sem que os vivos vejam.
+- 💀 **Chat dos mortos.** Quem morre continua conversando, longe dos vivos.
 - 🪞🔫 **Funções extras.** Espelho e Justiceiro deixam as partidas mais imprevisíveis.
 - 🏆 **Fim de jogo automático.** O narrador vê na hora quando a cidade ou os assassinos vencem.
 - 🧹 **Sem bagunça.** As salas recentes aparecem na tela inicial, e as que ficam paradas por 2 horas são limpas sozinhas.
@@ -71,7 +71,7 @@ O narrador escolhe quantas funções de cada tipo e toca em **Sortear**. Quem n�
 
 ### 4. Converse com os outros mortos
 
-Quem morre ganha acesso ao **chat dos mortos** da rodada. Os mortos podem comentar o jogo à vontade, e o narrador lê e pode responder. Os vivos não veem nem recebem nada desse chat. A cada nova rodada, o chat começa vazio.
+Quem morre entra no **chat dos mortos**, junto com o narrador. Os vivos não veem.
 
 <p align="center">
   <img src="docs/screenshots/10-chat-mortos.png" width="230" alt="Chat dos mortos" />

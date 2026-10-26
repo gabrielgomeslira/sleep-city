@@ -4,7 +4,7 @@ import { toast } from 'sonner'
 
 import { Avatar } from '@/components/Avatar'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { api } from '@/lib/api'
 import type { RoomView } from '@/lib/types'
@@ -58,17 +58,12 @@ export function DeadChat({ room, onChange }: { room: RoomView; onChange: (room: 
     <Card className="gap-4">
       <CardHeader>
         <CardTitle>💀 Chat dos mortos</CardTitle>
-        <CardDescription>
-          {room.isHost
-            ? 'Só quem já morreu nesta rodada conversa aqui. Você lê e pode responder; os vivos não veem.'
-            : 'Só quem já morreu nesta rodada e o narrador veem estas mensagens. Os vivos não.'}
-        </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
         <div ref={list} className="flex max-h-80 min-h-24 flex-col gap-2 overflow-y-auto rounded-2xl bg-muted p-3">
           {count === 0 ? (
             <p className="m-auto text-center text-sm font-bold text-muted-foreground">
-              Ninguém falou nada ainda. Puxe o assunto! 👻
+              Nenhuma mensagem ainda 👻
             </p>
           ) : (
             messages.map((m) => (
@@ -100,7 +95,7 @@ export function DeadChat({ room, onChange }: { room: RoomView; onChange: (room: 
           <Input
             value={text}
             onChange={(e) => setText(e.target.value)}
-            placeholder="Mensagem para os mortos…"
+            placeholder="Mensagem"
             maxLength={MAX_LENGTH}
             autoComplete="off"
             aria-label="Mensagem"

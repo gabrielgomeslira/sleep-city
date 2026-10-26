@@ -208,9 +208,7 @@ export function RoomPage({ code }: { code: string }) {
               <span className="text-4xl">💀</span>
               <div>
                 <p className="font-display text-lg font-semibold">Você está fora desta rodada</p>
-                <p className="text-sm font-bold text-white/80">
-                  Não fale com os vivos até o próximo sorteio. Se quiser, converse com os outros mortos aqui embaixo.
-                </p>
+                <p className="text-sm font-bold text-white/80">Fique em silêncio até o próximo sorteio.</p>
               </div>
             </div>
           )}
