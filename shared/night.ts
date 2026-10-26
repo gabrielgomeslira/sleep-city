@@ -101,17 +101,20 @@ export function usedMirrors(turns: { reflected?: Reflection[] }[]): Set<string> 
 
 /**
  * The town wins when every assassin is gone. The assassins win when the town can't turn
- * the game around: they are the majority (they decide any vote), or they are tied and
- * nobody alive can still stop the next night's kill (SAMU, a Justiceiro or an unused Espelho).
+ * the game around: they are the majority (they decide any vote), or they are tied (the vote
+ * can't take them out) and the next night someone will surely die. Each assassin attacks
+ * someone, so that is the case unless there are as many SAMU as assassins to save them all,
+ * or someone can still kill an assassin (a Justiceiro, or an Espelho that wasn't used).
  */
 export function winner(alive: { pid: string; role: Role }[], mirrorsUsed: Set<string>): 'cidade' | 'assassinos' | null {
   const assassins = alive.filter((p) => p.role === 'assassino').length
   const others = alive.length - assassins
   if (assassins === 0) return 'cidade'
   if (assassins > others) return 'assassinos'
-  const canStopThem = alive.some(
-    (p) => p.role === 'samu' || p.role === 'justiceiro' || (p.role === 'espelho' && !mirrorsUsed.has(p.pid)),
+  if (assassins < others) return null
+  const samu = alive.filter((p) => p.role === 'samu').length
+  const canKillAssassin = alive.some(
+    (p) => p.role === 'justiceiro' || (p.role === 'espelho' && !mirrorsUsed.has(p.pid)),
   )
-  if (assassins === others && !canStopThem) return 'assassinos'
-  return null
+  return samu >= assassins || canKillAssassin ? null : 'assassinos'
 }
