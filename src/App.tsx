@@ -13,6 +13,9 @@ export default function App() {
     <>
       <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col gap-4 px-4 pt-6 pb-10">
         {code ? <RoomPage key={code} code={code} /> : <HomePage />}
+        <footer className="mt-auto pt-6 text-center text-xs text-white/35">
+          desenvolvido por gomes.dev © 2026
+        </footer>
       </main>
       <Toaster />
       <ConfirmDialog />
