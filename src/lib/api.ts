@@ -1,5 +1,5 @@
 import { getClientId } from './session'
-import type { Counts, RoomView } from './types'
+import type { Counts, RecentRoom, RoomView } from './types'
 
 export class ApiError extends Error {
   constructor(
@@ -29,6 +29,7 @@ async function request<T>(method: 'GET' | 'POST', path: string, body?: unknown):
 }
 
 export const api = {
+  recentRooms: () => request<RecentRoom[]>('GET', '/rooms'),
   createRoom: (name: string) => request<RoomView>('POST', '/rooms', { name }),
   getRoom: (code: string) => request<RoomView>('GET', `/rooms/${code}`),
   join: (code: string, name: string) => request<RoomView>('POST', `/rooms/${code}/join`, { name }),

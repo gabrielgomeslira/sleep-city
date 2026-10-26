@@ -2,6 +2,7 @@ import { useState, type FormEvent } from 'react'
 import { ArrowRight, Loader2, Moon, Sparkles, Star } from 'lucide-react'
 import { toast } from 'sonner'
 
+import { RecentRooms } from '@/components/RecentRooms'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
@@ -114,6 +115,8 @@ export function HomePage() {
           )}
         </CardContent>
       </Card>
+
+      <RecentRooms />
     </>
   )
 }

@@ -26,6 +26,11 @@ import {
 } from './game.js'
 import { getStore } from './store.js'
 
+/** Rooms with nobody doing anything for this long are cleaned up (soft delete). */
+export const IDLE_MS = 2 * 60 * 60 * 1000
+/** How many rooms the home page lists. */
+const RECENT_ROOMS = 10
+
 export const app = express()
 app.disable('x-powered-by')
 app.use(express.json({ limit: '10kb' }))
@@ -101,10 +106,28 @@ function logWinner(room: Room, alive: NightPlayer[]) {
   if (side) log(room, `rodada ${room.round}: ${side === 'cidade' ? '🏆 a cidade venceu' : '🔪 os assassinos venceram'}`)
 }
 
+/** Rooms saved before `updatedAt` existed count as active until their next save stamps it. */
+const isIdle = (room: Room, now = Date.now()) => room.updatedAt !== undefined && now - room.updatedAt > IDLE_MS
+
 async function loadRoom(code: string): Promise<Room> {
   const room = await getStore().getRoom(parseCode(code))
-  if (!room) throw new HttpError(404, 'Sala não encontrada')
+  if (!room || room.deletedAt) throw new HttpError(404, 'Sala não encontrada')
+  if (isIdle(room)) {
+    await getStore().deleteRoom(room.code)
+    log(room, 'apagada por ficar mais de 2 horas parada')
+    throw new HttpError(404, 'Sala não encontrada')
+  }
   return room
+}
+
+/** Soft deletes every room idle for more than IDLE_MS. Runs before the recent rooms are listed. */
+export async function cleanupIdleRooms() {
+  const store = getStore()
+  const now = Date.now()
+  for (const code of await store.idleRooms(now - IDLE_MS)) {
+    const room = await store.deleteRoom(code)
+    if (room && !room.deletedAt) log(room, 'apagada por ficar mais de 2 horas parada')
+  }
 }
 
 function requireHost(room: Room, clientId: string) {
@@ -222,6 +245,25 @@ app.post('/api/rooms', async (req, res) => {
   res.status(201).json(await roomView(room, clientId))
 })
 
+/** Rooms with recent activity, for the home page. */
+app.get('/api/rooms', async (_req, res) => {
+  await cleanupIdleRooms()
+  const now = Date.now()
+  const rooms = await getStore().recentRooms(RECENT_ROOMS)
+  res.json(
+    rooms
+      .filter(({ room }) => !isIdle(room, now))
+      .map(({ room, players }) => ({
+        code: room.code,
+        hostName: room.hostName,
+        players,
+        status: room.status,
+        round: room.round,
+        updatedAt: room.updatedAt ?? room.createdAt,
+      })),
+  )
+})
+
 app.get('/api/rooms/:code', async (req, res) => {
   const clientId = getClientId(req)
   const room = await loadRoom(req.params.code)
@@ -232,6 +274,7 @@ app.post('/api/rooms/:code/join', async (req, res) => {
   const clientId = getClientId(req)
   const room = await loadRoom(req.params.code)
   await addPlayer(room, clientId, parseName(req.body?.name))
+  await getStore().saveRoom(room)
   res.json(await roomView(room, clientId))
 })
 
@@ -240,6 +283,7 @@ app.post('/api/rooms/:code/leave', async (req, res) => {
   const room = await loadRoom(req.params.code)
   const player = (await getPlayers(room))[clientId]
   await getStore().removePlayer(room.code, clientId)
+  await getStore().saveRoom(room)
   if (player) log(room, `${player.name} saiu`)
   res.json({ ok: true })
 })
@@ -253,6 +297,7 @@ app.post('/api/rooms/:code/kick', async (req, res) => {
   const target = Object.entries(players).find(([, p]) => p.pid === req.body?.pid)
   if (target) {
     await getStore().removePlayer(room.code, target[0])
+    await getStore().saveRoom(room)
     log(room, `${room.hostName} removeu ${target[1].name}`)
   }
 

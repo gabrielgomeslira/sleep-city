@@ -92,7 +92,7 @@ export function RoomPage({ code }: { code: string }) {
           <CardHeader>
             <CardTitle>😴 Sala não encontrada</CardTitle>
             <CardDescription>
-              O código {code} não existe ou a sala expirou. Confira o link com quem criou a sala.
+              O código {code} não existe ou a sala foi encerrada por ficar mais de 2 horas parada. Confira o link com quem criou a sala.
             </CardDescription>
           </CardHeader>
           <CardContent>

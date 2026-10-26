@@ -9,7 +9,7 @@
 ## Como funciona
 
 1. Quem abre o site recebe uma **sessão única naquele navegador**: um id aleatório salvo no `localStorage`, sem cadastro.
-2. Essa pessoa cria a sala e compartilha o link (`/sala/CODIGO`) copiando, pelo menu de compartilhar do celular ou mostrando o QR code.
+2. Essa pessoa cria a sala (ou entra em uma das **salas recentes** listadas na tela inicial) e compartilha o link (`/sala/CODIGO`) copiando, pelo menu de compartilhar do celular ou mostrando o QR code.
 3. Os convidados abrem o link, escolhem um nome e entram. Se alguém entrar com o **nome de quem já está na sala** (por exemplo, pelo celular de outra pessoa depois que a bateria acabou), a nova sessão **assume o lugar** dela, com a mesma função, vivo ou morto, e a sessão antiga sai da sala. O nome do narrador continua bloqueado.
 4. O narrador (quem criou a sala, que não entra no sorteio) escolhe quantos assassinos, detetives, SAMU, espelhos e justiceiros haverá e clica em **Sortear**. O sorteio acontece no servidor com `crypto.randomInt` e lembra as **2 últimas rodadas** de cada jogador: quem tirou a mesma função nas duas tem **10× menos chance** de tirá-la pela 3ª vez seguida (um cidadão nessa situação tem mais chance de ganhar uma função especial). No longo prazo, cada um continua com a mesma chance de cada função.
 5. O servidor devolve a cada jogador **somente a função dele**. Só o narrador recebe a lista com a função de todo mundo, que aparece na tela dele ao lado de cada nome.
@@ -75,6 +75,7 @@ Todas as rotas exigem o header `x-client-id`, que identifica a sessão do navega
 | Método | Rota                        | Quem         | Descrição                                   |
 | ------ | --------------------------- | ------------ | ------------------------------------------- |
 | POST   | `/api/rooms`                | qualquer um  | cria uma sala (`{ name }`)                  |
+| GET    | `/api/rooms`                | qualquer um  | salas com movimento nas últimas 2 horas     |
 | GET    | `/api/rooms/:code`          | qualquer um  | estado da sala + funções que você pode ver   |
 | POST   | `/api/rooms/:code/join`     | qualquer um  | entra na sala (`{ name }`)                  |
 | POST   | `/api/rooms/:code/leave`    | jogador      | sai da sala                                 |
@@ -86,7 +87,7 @@ Todas as rotas exigem o header `x-client-id`, que identifica a sessão do navega
 | POST   | `/api/rooms/:code/kick`     | narrador     | remove um jogador (`{ pid }`)               |
 | POST   | `/api/rooms/:code/transfer` | narrador     | passa a narração a um jogador (`{ pid }`)   |
 
-As salas expiram depois de 12 horas sem alterações. Os clientes consultam o estado a cada 2,5 s, o que dá folga de sobra no plano gratuito do Upstash para uma noite de jogo.
+Uma sala **sem nenhuma ação por mais de 2 horas** (sorteio, noite, dia, entrada ou saída de jogador; só ficar com o app aberto não conta) é apagada com *soft delete*: ganha `deletedAt`, sai da lista de salas recentes e o link passa a dar "sala não encontrada", mas os dados continuam no Redis até expirarem, 12 horas depois. A limpeza (`cleanupIdleRooms` em `server/app.ts`) roda sempre que a tela inicial pede a lista, e uma sala parada também é apagada quando alguém tenta abri-la. Os clientes consultam o estado a cada 2,5 s, o que dá folga de sobra no plano gratuito do Upstash para uma noite de jogo.
 
 ### Logs
 

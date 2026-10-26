@@ -42,6 +42,10 @@ export interface Room {
   hostPid?: string
   hostJoinedAt?: number
   createdAt: number
+  /** Last time anyone did something in the room (set by the store on every save). */
+  updatedAt?: number
+  /** Soft delete: set when the room is cleaned up for being idle; it then behaves as if it didn't exist. */
+  deletedAt?: number
   status: 'lobby' | 'playing'
   round: number
   counts: Counts

@@ -110,3 +110,13 @@ export const ROLE_INFO: Record<Role, { label: string; description: string }> = {
     description: 'Você não tem poder especial. Observe, debata e ache os assassinos.',
   },
 }
+
+/** A room listed on the home page. */
+export interface RecentRoom {
+  code: string
+  hostName: string
+  players: number
+  status: 'lobby' | 'playing'
+  round: number
+  updatedAt: number
+}
