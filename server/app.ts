@@ -1,3 +1,4 @@
+import type { Attributes } from '@opentelemetry/api'
 import express, { type NextFunction, type Request, type Response } from 'express'
 import { resolveNight, usedMirrors, winner, type NightPlayer, type NightResult, type Shot } from '../shared/night.js'
 import {
@@ -26,6 +27,7 @@ import {
   type Turn,
 } from './game.js'
 import { getStore } from './store.js'
+import { emitLog, recordError, requestTracing } from './telemetry.js'
 
 /** Rooms with nobody doing anything for this long are cleaned up (soft delete). */
 export const IDLE_MS = 2 * 60 * 60 * 1000
@@ -34,6 +36,7 @@ const RECENT_ROOMS = 10
 
 export const app = express()
 app.disable('x-powered-by')
+app.use(requestTracing)
 app.use(express.json({ limit: '10kb' }))
 app.use('/api', (_req, res, next) => {
   res.set('Cache-Control', 'no-store')
@@ -60,9 +63,13 @@ const ROLE_LABEL: Record<Role, string> = {
 
 const list = (marks: Mark[]) => (marks.length ? marks.map((m) => m.name).join(', ') : 'ninguém')
 
-/** One line per game event; search the room code in the Vercel project's Logs tab. */
-function log(room: Room, message: string) {
+/**
+ * One line per game event; search the room code in the Vercel project's Logs tab.
+ * Also sent to Loki with `game.event`, which the Grafana dashboard counts.
+ */
+function log(room: Room, message: string, event: string, attributes: Attributes = {}) {
   console.log(`[sala ${room.code}] ${message}`)
+  emitLog('info', message, { 'game.event': event, 'room.code': room.code, 'game.round': room.round, ...attributes })
 }
 
 function logDraw(room: Room, players: Record<string, Player>, roles: Record<string, Role>) {
@@ -72,7 +79,13 @@ function logDraw(room: Room, players: Record<string, Player>, roles: Record<stri
       return who.length ? `${ROLE_LABEL[role]}: ${who.join(', ')}` : null
     })
     .filter(Boolean)
-  log(room, `rodada ${room.round} sorteada por ${room.hostName} · ${byRole.join(' | ')}`)
+  const perRole = Object.fromEntries(
+    (Object.keys(ROLE_LABEL) as Role[]).map((role) => [`game.role.${role}`, Object.values(roles).filter((r) => r === role).length]),
+  )
+  log(room, `rodada ${room.round} sorteada por ${room.hostName} · ${byRole.join(' | ')}`, 'rodada.sorteada', {
+    'game.players': Object.keys(roles).length,
+    ...perRole,
+  })
 
   // Who had the same role in their last two rounds, and whether they got it a third time anyway.
   const streaks = Object.entries(roles).flatMap(([id, role]) => {
@@ -80,7 +93,7 @@ function logDraw(room: Room, players: Record<string, Player>, roles: Record<stri
     if (!streak) return []
     return [`${players[id].name} (${ROLE_LABEL[streak]} 2x → ${streak === role ? 'repetiu 3ª vez' : ROLE_LABEL[role]})`]
   })
-  if (streaks.length) log(room, `rodada ${room.round} · sequências: ${streaks.join('; ')}`)
+  if (streaks.length) log(room, `rodada ${room.round} · sequências: ${streaks.join('; ')}`, 'rodada.sequencias')
 }
 
 function logNight(room: Room, turn: Turn, result: NightResult) {
@@ -90,21 +103,32 @@ function logNight(room: Room, turn: Turn, result: NightResult) {
   for (const s of turn.shots ?? []) parts.push(`🔫 ${s.by.name} atirou em ${s.target.name}`)
   if (result.guilty.length) parts.push(`morreu de culpa ${list(result.guilty)}`)
   parts.push(`morreram ${list(result.killed)}`)
-  log(room, `rodada ${room.round} · noite ${n}: ${parts.join(' · ')}`)
+  log(room, `rodada ${room.round} · noite ${n}: ${parts.join(' · ')}`, 'noite.resolvida', {
+    'game.night': n,
+    'game.deaths': result.killed.length,
+  })
 }
 
 function logDay(room: Room, turn: Turn) {
-  log(room, `rodada ${room.round} · dia ${room.turns?.length ?? 0}: votação eliminou ${list(turn.voted ?? [])}`)
+  log(room, `rodada ${room.round} · dia ${room.turns?.length ?? 0}: votação eliminou ${list(turn.voted ?? [])}`, 'dia.votacao', {
+    'game.day': room.turns?.length ?? 0,
+    'game.voted_out': turn.voted?.length ?? 0,
+  })
 }
 
 function logNightStart(room: Room, night: NightSetup, number: number, alive: NightPlayer[]) {
   const shooters = alive.filter((p) => night.justiceiros.includes(p.pid))
-  if (shooters.length) log(room, `rodada ${room.round} · noite ${number}: 🔫 tem vez ${list(shooters)}`)
+  if (shooters.length) log(room, `rodada ${room.round} · noite ${number}: 🔫 tem vez ${list(shooters)}`, 'noite.justiceiro')
 }
 
 function logWinner(room: Room, alive: NightPlayer[]) {
   const side = winner(alive, usedMirrors(room.turns ?? []))
-  if (side) log(room, `rodada ${room.round}: ${side === 'cidade' ? '🏆 a cidade venceu' : '🔪 os assassinos venceram'}`)
+  if (side) {
+    log(room, `rodada ${room.round}: ${side === 'cidade' ? '🏆 a cidade venceu' : '🔪 os assassinos venceram'}`, 'partida.vencida', {
+      'game.winner': side,
+      'game.turns': room.turns?.length ?? 0,
+    })
+  }
 }
 
 /** Rooms saved before `updatedAt` existed count as active until their next save stamps it. */
@@ -115,7 +139,7 @@ async function loadRoom(code: string): Promise<Room> {
   if (!room || room.deletedAt) throw new HttpError(404, 'Sala não encontrada')
   if (isIdle(room)) {
     await getStore().deleteRoom(room.code)
-    log(room, 'apagada por ficar mais de 2 horas parada')
+    log(room, 'apagada por ficar mais de 2 horas parada', 'sala.expirada')
     throw new HttpError(404, 'Sala não encontrada')
   }
   return room
@@ -127,7 +151,7 @@ export async function cleanupIdleRooms() {
   const now = Date.now()
   for (const code of await store.idleRooms(now - IDLE_MS)) {
     const room = await store.deleteRoom(code)
-    if (room && !room.deletedAt) log(room, 'apagada por ficar mais de 2 horas parada')
+    if (room && !room.deletedAt) log(room, 'apagada por ficar mais de 2 horas parada', 'sala.expirada')
   }
 }
 
@@ -207,7 +231,7 @@ async function addPlayer(room: Room, clientId: string, name: string) {
   if (sameName) {
     const [oldId, old] = sameName
     await getStore().replacePlayer(room.code, oldId, clientId, { ...old, name })
-    log(room, `${name} entrou de novo por outra sessão; a anterior foi removida`)
+    log(room, `${name} entrou de novo por outra sessão; a anterior foi removida`, 'jogador.reconectou')
     return
   }
 
@@ -218,8 +242,8 @@ async function addPlayer(room: Room, clientId: string, name: string) {
     name,
     joinedAt: existing?.joinedAt ?? Date.now(),
   })
-  if (!existing) log(room, `${name} entrou`)
-  else if (existing.name !== name) log(room, `${existing.name} agora se chama ${name}`)
+  if (!existing) log(room, `${name} entrou`, 'jogador.entrou')
+  else if (existing.name !== name) log(room, `${existing.name} agora se chama ${name}`, 'jogador.renomeou')
 }
 
 app.post('/api/rooms', async (req, res) => {
@@ -244,7 +268,7 @@ app.post('/api/rooms', async (req, res) => {
     counts: DEFAULT_COUNTS,
   }
   await store.saveRoom(room)
-  log(room, `sala criada por ${name}`)
+  log(room, `sala criada por ${name}`, 'sala.criada')
 
   res.status(201).json(await roomView(room, clientId))
 })
@@ -288,7 +312,7 @@ app.post('/api/rooms/:code/leave', async (req, res) => {
   const player = (await getPlayers(room))[clientId]
   await getStore().removePlayer(room.code, clientId)
   await getStore().saveRoom(room)
-  if (player) log(room, `${player.name} saiu`)
+  if (player) log(room, `${player.name} saiu`, 'jogador.saiu')
   res.json({ ok: true })
 })
 
@@ -302,7 +326,7 @@ app.post('/api/rooms/:code/kick', async (req, res) => {
   if (target) {
     await getStore().removePlayer(room.code, target[0])
     await getStore().saveRoom(room)
-    log(room, `${room.hostName} removeu ${target[1].name}`)
+    log(room, `${room.hostName} removeu ${target[1].name}`, 'jogador.removido')
   }
 
   res.json(await roomView(room, clientId))
@@ -349,7 +373,11 @@ app.post('/api/rooms/:code/transfer', async (req, res) => {
     nights: [],
   }
   await store.saveRoom(updated)
-  log(room, `narração passou de ${room.hostName} para ${newHost.name}${room.status === 'playing' ? ' (rodada encerrada)' : ''}`)
+  log(
+    room,
+    `narração passou de ${room.hostName} para ${newHost.name}${room.status === 'playing' ? ' (rodada encerrada)' : ''}`,
+    'narracao.transferida',
+  )
 
   res.json(await roomView(updated, clientId))
 })
@@ -391,7 +419,7 @@ app.post('/api/rooms/:code/reset', async (req, res) => {
   await getStore().clearRoles(room.code)
   const updated: Room = { ...room, status: 'lobby', phase: undefined, turns: [], nights: [] }
   await getStore().saveRoom(updated)
-  log(room, `rodada ${room.round} encerrada, de volta ao lobby`)
+  log(room, `rodada ${room.round} encerrada, de volta ao lobby`, 'rodada.encerrada')
 
   res.json(await roomView(updated, clientId))
 })
@@ -468,6 +496,13 @@ app.post('/api/rooms/:code/chat', async (req, res) => {
     at: Date.now(),
   })
   const updated = await store.saveRoom(room)
+  // Only counted, never sent with the text: the chat stays out of the logs.
+  emitLog('info', 'mensagem no chat dos mortos', {
+    'game.event': 'chat.mensagem',
+    'room.code': room.code,
+    'game.round': room.round,
+    'chat.author': isHost ? 'narrador' : 'morto',
+  })
   res.json(await roomView(updated, clientId))
 })
 
@@ -550,7 +585,7 @@ app.post('/api/rooms/:code/undo', async (req, res) => {
   }
   const updated: Room = { ...room, phase, turns }
   await getStore().saveRoom(updated)
-  log(room, `${room.hostName} desfez ${phase === 'night' ? 'o amanhecer' : 'a votação'}`)
+  log(room, `${room.hostName} desfez ${phase === 'night' ? 'o amanhecer' : 'a votação'}`, 'acao.desfeita')
 
   res.json(await roomView(updated, clientId))
 })
@@ -562,7 +597,10 @@ app.use('/api', (_req, res) => {
 app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
   if (err instanceof HttpError) {
     // 401/404 happen all the time (expired rooms, old links); the rest help explain a complaint.
-    if (err.status !== 401 && err.status !== 404) console.warn(`${req.method} ${req.path} → ${err.status} ${err.message}`)
+    if (err.status !== 401 && err.status !== 404) {
+      console.warn(`${req.method} ${req.path} → ${err.status} ${err.message}`)
+      emitLog('warn', err.message, { 'http.request.method': req.method, 'url.path': req.path, 'http.response.status_code': err.status })
+    }
     res.status(err.status).json({ error: err.message })
     return
   }
@@ -571,5 +609,7 @@ app.use((err: unknown, req: Request, res: Response, _next: NextFunction) => {
     return
   }
   console.error(err)
+  recordError(err)
+  emitLog('error', err instanceof Error ? err.message : String(err), { 'http.request.method': req.method, 'url.path': req.path }, err)
   res.status(500).json({ error: 'Erro interno, tente novamente' })
 })

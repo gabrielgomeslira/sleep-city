@@ -1,5 +1,6 @@
 import { Redis } from '@upstash/redis'
 import { CHAT_MAX_MESSAGES, type ChatMessage, type Player, type Role, type Room } from './game.js'
+import { traced } from './telemetry.js'
 
 /** Rooms expire after 12h without changes. */
 const TTL_SECONDS = 60 * 60 * 12
@@ -258,5 +259,7 @@ export function getStore(): Store {
     }
     store = new MemoryStore()
   }
+  // Each call shows up as a child span (store.getRoom, store.saveRoom…) in the request's trace.
+  store = traced(store, 'store', { 'db.system.name': url && token ? 'redis' : 'memory' })
   return store
 }
