@@ -137,6 +137,7 @@ A noite é resolvida nesta ordem:
 | Backend | Node.js + Express 5, publicado como Vercel Function (`api/index.ts`) |
 | Estado | Upstash Redis (Marketplace da Vercel); em memória quando roda localmente |
 | Regras | `shared/night.ts`, usado pelo servidor (para valer) e pela tela do narrador (prévia) |
+| Observabilidade | OpenTelemetry na API e Grafana Faro no navegador, enviados para o Grafana de gomes.dev |
 
 Os clientes consultam o estado a cada 2,5 s, o que dá folga de sobra no plano gratuito do Upstash para uma noite de jogo.
 
@@ -156,7 +157,9 @@ npm run dev
 
 1. Importe o repositório na Vercel (**Add New → Project**). O `vercel.json` já configura o Vite e o `/api`; é só clicar em **Deploy**.
 2. Em **Storage → Create Database → Upstash (Redis)**, crie o banco no plano gratuito e conecte ao projeto. As variáveis `KV_REST_API_URL` e `KV_REST_API_TOKEN` (ou `UPSTASH_REDIS_REST_*`) entram sozinhas.
-3. Faça um **Redeploy** para que as variáveis passem a valer.
+3. Opcional, para a observabilidade: em **Settings → Environment Variables** (Production), crie
+   `OTEL_EXPORTER_OTLP_ENDPOINT=https://otel.gomes.dev` e `OTEL_EXPORTER_OTLP_HEADERS=Authorization=Bearer <token do projeto>`.
+4. Faça um **Redeploy** para que as variáveis passem a valer.
 
 > ⚠️ O Redis é obrigatório em produção: as funções serverless da Vercel não compartilham memória, então sem ele as salas "somem".
 
@@ -188,11 +191,17 @@ Todas as rotas usam o header `x-client-id`, que identifica a sessão do navegado
 | POST | `/api/rooms/:code/kick` | narrador | remove um jogador (`{ pid }`) |
 | POST | `/api/rooms/:code/transfer` | narrador | passa a narração a um jogador (`{ pid }`) |
 
-### Logs
+### Logs e observabilidade
 
 O servidor escreve uma linha por evento, sempre começando com `[sala CODIGO]`: sala criada ou apagada, entradas e saídas, cada sorteio com a função de todos, sequências de função repetida, noites, votações, vitórias, desfazer e troca de narrador. Erros de regra (ex.: `409 A rodada já mudou`) também aparecem.
 
 Na Vercel, abra o projeto, vá em **Logs** e busque pelo código da sala. No plano gratuito os logs ficam disponíveis por cerca de 1 hora. Localmente, eles aparecem no terminal do `npm run dev`.
+
+Com as variáveis `OTEL_*` definidas, a API também envia traces (cada requisição com as chamadas ao Redis) e esses mesmos eventos como logs estruturados (`game.event`, `room.code`…). Em `sleepcity.gomes.dev`, o navegador envia erros, Web Vitals e o trace de cada ação, que continua no servidor. Tudo aparece no Grafana em **Projetos → Sleep City**, com busca por sala.
+
+- O polling da sala (a cada 2,5 s) entra por amostragem de 10%; erros e requisições lentas entram sempre. As métricas compensam a amostragem.
+- O texto do chat dos mortos nunca é enviado, só a contagem de mensagens.
+- Sem as variáveis, nada é enviado (é o caso do `npm run dev`).
 
 ### Estrutura
 
@@ -201,11 +210,13 @@ api/index.ts          # entrada da Vercel Function (exporta o app Express)
 server/app.ts         # rotas da API, logs e limpeza das salas
 server/game.ts        # sorteio, validações, códigos de sala
 server/store.ts       # Redis (Upstash) ou memória
+server/telemetry.ts   # OpenTelemetry: span por requisição, amostragem do polling, logs estruturados
 server/dev.ts         # servidor local da API
 shared/night.ts       # regras da noite e da vitória (servidor + tela do narrador)
 src/pages/            # Home e Sala
 src/components/       # RoleReveal, HostPanel, TurnPanel, TurnHistory, DeadChat, RecentRooms, PhaseBar, Announcement…
 src/components/ui/    # componentes shadcn/ui
+src/lib/faro.ts       # Grafana Faro (telemetria do navegador)
 docs/screenshots/     # imagens deste README
 ```
 
